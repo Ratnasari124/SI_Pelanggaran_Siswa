@@ -1,0 +1,1 @@
+jenis pelanggaran buat susunannya kek kelas dan siswa ada folder jenis pelanggaran terus file jenis.php jenis_tambah.php jenis_edit.php dan jenis_hapus.php
