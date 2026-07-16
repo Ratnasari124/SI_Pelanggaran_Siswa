@@ -35,8 +35,12 @@ $menu_aktif = explode('_', $page_url)[0];
     <a class="nav-link <?= ($menu_aktif == 'jenis') ? 'aktif' : ''; ?>" href="index.php?page=jenis">
         <i class="fas fa-list me-2"></i> Jenis Pelanggaran
     </a>
+    <a class="nav-link <?= ($menu_aktif == 'sanksi') ? 'aktif' : ''; ?>" href="index.php?page=sanksi">
+        <i class="fas fa-gavel me-2"></i> Sanksi Pelanggaran
+    </a>
     
-    <a class="nav-link <?= ($menu_aktif == 'pelanggaran') ? 'aktif' : ''; ?>" href="index.php?page=pelanggaran">
+    <a class="nav-link <?= ($menu_aktif == 'pelanggaran') ? 'akt
+    if' : ''; ?>" href="index.php?page=pelanggaran">
         <i class="fas fa-exclamation-triangle me-2"></i> Catat Pelanggaran
     </a>
 </nav>
