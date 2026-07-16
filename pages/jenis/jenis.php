@@ -1,24 +1,26 @@
 <?php
 /** @var mysqli $conn */
 
-// 1. Menangkap nilai dari URL jika form pencarian disubmit
-$cari = isset($_GET['cari']) ? $_GET['cari'] : '';
-$filter_bobot = isset($_GET['filter_bobot']) ? $_GET['filter_bobot'] : '';
+// 1. PERBAIKAN: Ambil nilai filter menggunakan POST agar tidak merusak routing URL template
+$cari = isset($_POST['cari']) ? mysqli_real_escape_string($conn, $_POST['cari']) : '';
+$filter_poin = isset($_POST['filter_poin']) ? mysqli_real_escape_string($conn, $_POST['filter_poin']) : '';
 
-// 2. Merakit query SQL dinamis berdasarkan kolom nama_pelanggaran dan poin
+// 2. AMBIL DAFTAR PENGELOMPOKAN ANGKA POIN SECARA UNIK (DISTINCT) DARI DATABASE
+$query_angka_poin = mysqli_query($conn, "SELECT DISTINCT poin FROM jenis_pelanggaran ORDER BY poin ASC");
+
+// 3. Menyusun kondisi query pencarian SQL
 $kondisi = "";
+
 if ($cari != '') {
     $kondisi .= " AND nama_pelanggaran LIKE '%$cari%'";
 }
 
-if ($filter_bobot != '') {
-    if ($filter_bobot == 'Sangat Berat')  $kondisi .= " AND poin = 150";
-    elseif ($filter_bobot == 'Berat')     $kondisi .= " AND poin = 75";
-    elseif ($filter_bobot == 'Sedang')    $kondisi .= " AND poin = 40";
-    elseif ($filter_bobot == 'Ringan')    $kondisi .= " AND poin = 10";
+if ($filter_poin != '') {
+    $poin_pilihan = intval($filter_poin);
+    $kondisi .= " AND poin = '$poin_pilihan'";
 }
 
-// 3. Eksekusi query data_pelanggaran
+// 4. Jalankan query utama untuk menampilkan tabel data
 $sql = "SELECT * FROM jenis_pelanggaran WHERE 1=1 $kondisi ORDER BY poin DESC, nama_pelanggaran ASC";
 $query = mysqli_query($conn, $sql);
 ?>
@@ -30,20 +32,26 @@ $query = mysqli_query($conn, $sql);
 
 <div class="card shadow-sm mb-4">
     <div class="card-body bg-light">
-        <form method="GET" action="index.php" class="row g-3">
-            <input type="hidden" name="page" value="jenis">
+        <form method="POST" action="" class="row g-3">
             
             <div class="col-md-4">
                 <input type="text" name="cari" class="form-control" placeholder="Cari nama pelanggaran..." value="<?= htmlspecialchars($cari); ?>">
             </div>
             
             <div class="col-md-4">
-                <select name="filter_bobot" class="form-select">
-                    <option value="">-- Semua Tingkatan Poin --</option>
-                    <option value="Sangat Berat" <?= $filter_bobot == 'Sangat Berat' ? 'selected' : ''; ?>>Sangat Berat (150 Poin)</option>
-                    <option value="Berat" <?= $filter_bobot == 'Berat' ? 'selected' : ''; ?>>Berat (75 Poin)</option>
-                    <option value="Sedang" <?= $filter_bobot == 'Sedang' ? 'selected' : ''; ?>>Sedang (40 Poin)</option>
-                    <option value="Ringan" <?= $filter_bobot == 'Ringan' ? 'selected' : ''; ?>>Ringan (10 Poin)</option>
+                <select name="filter_poin" class="form-select">
+                    <option value="">-- Semua Poin --</option>
+                    <?php 
+                    if ($query_angka_poin) {
+                        while ($row_poin = mysqli_fetch_assoc($query_angka_poin)) {
+                            $angka = $row_poin['poin'];
+                            // Menjaga agar pilihan dropdown tidak reset kembali setelah klik tombol Tampilkan
+                            $selected = ($filter_poin != '' && intval($filter_poin) === intval($angka)) ? 'selected' : '';
+                            
+                            echo "<option value='".$angka."' ".$selected.">".$angka." Poin</option>";
+                        }
+                    }
+                    ?>
                 </select>
             </div>
             
@@ -51,7 +59,7 @@ $query = mysqli_query($conn, $sql);
                 <button type="submit" class="btn btn-secondary"><i class="fas fa-search"></i> Tampilkan</button>
             </div>
             <div class="col-md-2 d-grid">
-                <button type="button" class="btn btn-outline-secondary" onclick="window.location.href='index.php?page=jenis'"><i class="fas fa-sync-alt"></i> Reset</button>
+                <a href="index.php?page=jenis" class="btn btn-outline-secondary text-center py-2"><i class="fas fa-sync-alt"></i> Reset</a>
             </div>
         </form>
     </div>
@@ -63,28 +71,24 @@ $query = mysqli_query($conn, $sql);
             <tr>
                 <th width="5%" class="text-center">No</th>
                 <th>Nama Pelanggaran</th>
-                <th width="25%" class="text-center">Klasifikasi Bobot (Poin)</th>
+                <th width="25%" class="text-center">Bobot (Poin)</th>
                 <th width="15%" class="text-center">Aksi</th>
             </tr>
         </thead>
         <tbody>
             <?php
             $no = 1;
-            if(mysqli_num_rows($query) == 0){
-                echo "<tr><td colspan='4' class='text-center text-danger fw-bold'>Data tidak ditemukan!</td></tr>";
+            if (mysqli_num_rows($query) == 0) {
+                echo "<tr><td colspan='4' class='text-center text-danger fw-bold py-3'>Data tidak ditemukan untuk poin ini!</td></tr>";
             } else {
-                while($data = mysqli_fetch_array($query)){
+                while ($data = mysqli_fetch_array($query)) {
+                    $poin_aktif = intval($data['poin']);
             ?>
             <tr>
                 <td class="text-center"><?= $no++; ?></td>
                 <td><?= htmlspecialchars($data['nama_pelanggaran']); ?></td>
-                <td class="text-center">
-                    <?php 
-                        if($data['poin'] >= 150)       echo '<span class="badge bg-danger px-3 py-2 fs-7 w-100">Sangat Berat (150 Poin)</span>';
-                        elseif($data['poin'] >= 75)   echo '<span class="badge bg-warning text-dark px-3 py-2 fs-7 w-100">Berat (75 Poin)</span>';
-                        elseif($data['poin'] >= 40)   echo '<span class="badge bg-info text-dark px-3 py-2 fs-7 w-100">Sedang (40 Poin)</span>';
-                        else                          echo '<span class="badge bg-secondary px-3 py-2 fs-7 w-100">Ringan (10 Poin)</span>';
-                    ?>
+                <td class="text-center fw-bold text-primary">
+                    <?= $poin_aktif; ?> Poin
                 </td>
                 <td class="text-center">
                     <a href="index.php?page=jenis_edit&id=<?= $data['id']; ?>" class="btn btn-sm btn-warning text-dark" title="Edit"><i class="fas fa-edit"></i></a>
