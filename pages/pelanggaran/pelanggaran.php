@@ -98,7 +98,7 @@ $query = mysqli_query($conn, $sql);
             <?php
             $no = 1;
             if (!$query || mysqli_num_rows($query) == 0) {
-                echo "<tr><td colspan='7' class='text-center text-danger fw-bold py-3'>Tidak ada data pelanggaran ditemukan!</td></tr>";
+                echo "<tr><td colspan='8' class='text-center text-danger fw-bold py-3'>Tidak ada data pelanggaran ditemukan!</td></tr>";
             } else {
                 while ($data = mysqli_fetch_array($query)) {
             ?>
@@ -107,26 +107,27 @@ $query = mysqli_query($conn, $sql);
                 <td class="text-center"><?= date('d-m-Y', strtotime($data['tanggal'])); ?></td>
                 <td><?= htmlspecialchars($data['nama_siswa']); ?></td>
                 <td><?= htmlspecialchars($data['nama_pelanggaran']); ?></td>
-                <td class="text-center fw-bold text-danger">
-                    + <?= intval($data['poin']); ?> Poin
-                </td>
+                <td class="text-center fw-bold text-danger">+ <?= intval($data['poin']); ?> Poin</td>
                 <td><?= htmlspecialchars($data['keterangan'] ?: '-'); ?></td>
                 <td>
                     <?php
-                    // Ambil nama lengkap pencatat pelanggaran dari tabel users
                     $id_user = $data['id_user'];
                     $query_user = mysqli_query($conn, "SELECT nama_lengkap, role FROM users WHERE id = '$id_user'");
-                    if ($query_user && mysqli_num_rows($query_user) > 0) {
-                        $user_data = mysqli_fetch_assoc($query_user);
-                        $role_display = ucfirst($user_data['role']); // Membuat huruf pertama kapital (Guru / Provoost)
-                        echo htmlspecialchars($user_data['nama_lengkap']) . " [" . $role_display . "]";
+                    if ($user_data = mysqli_fetch_assoc($query_user)) {
+                        echo htmlspecialchars($user_data['nama_lengkap']) . " [" . ucfirst($user_data['role']) . "]";
                     } else {
-                        echo "<span class='text-danger'>Data pencatat tidak ditemukan!</span>";
+                        echo "<span class='text-muted'>-</span>";
                     }
                     ?>
+                </td>
                 <td class="text-center">
-                    <a href="index.php?page=pelanggaran_edit&id=<?= $data['id']; ?>" class="btn btn-sm btn-warning text-dark" title="Edit"><i class="fas fa-edit"></i></a>
-                    <a href="index.php?page=pelanggaran_hapus&id=<?= $data['id']; ?>" class="btn btn-sm btn-danger btn-hapus" title="Hapus"><i class="fas fa-trash"></i></a>
+                    <a href="index.php?page=pelanggaran_edit&id=<?= $data['id']; ?>" class="btn btn-sm btn-warning">Edit</a>
+                    
+                    <?php if ($_SESSION['role'] == 'admin' || $_SESSION['role'] == 'guru'): ?>
+                        <!-- Tambahkan class btn-hapus di sini agar skrip SweetAlert bekerja -->
+                        <a href="index.php?page=pelanggaran_hapus&id=<?= $data['id']; ?>" 
+                           class="btn btn-sm btn-danger btn-hapus">Hapus</a>
+                    <?php endif; ?>
                 </td>
             </tr>
             <?php 

@@ -107,10 +107,16 @@ $menu_aktif = explode('_', $page_url)[0];
         <?php endif; ?>
 
         <!-- OPERASIONAL -->
+        <!-- OPERASIONAL -->
         <div class="menu-group-title">Data Operasional</div>
-        <a class="nav-link <?= ($menu_aktif == 'siswa') ? 'aktif' : ''; ?>" href="index.php?page=siswa">
-            <i class="fas fa-user-graduate"></i> Data Siswa
-        </a>
+        
+        <!-- Tambahkan kondisi agar Provoost tidak bisa melihat Data Siswa -->
+        <?php if ($role == 'admin' || $role == 'guru'): ?>
+            <a class="nav-link <?= ($menu_aktif == 'siswa') ? 'aktif' : ''; ?>" href="index.php?page=siswa">
+                <i class="fas fa-user-graduate"></i> Data Siswa
+            </a>
+        <?php endif; ?>
+
         <a class="nav-link <?= ($menu_aktif == 'pelanggaran') ? 'aktif' : ''; ?>" href="index.php?page=pelanggaran">
             <i class="fas fa-clipboard-list"></i> Catat Pelanggaran
         </a>

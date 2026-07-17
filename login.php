@@ -115,7 +115,7 @@ if (isset($_POST['login'])) {
             <div class="mb-3">
                 <label class="form-label text-muted">Password</label>
                 <div class="input-group">
-                    <input type="password" name="password" class="form-control" id="password" placeholder="••••••••" required>
+                    <input type="password" name="password" class="form-control" id="password" placeholder="Masukkan password" required>
                     <button class="btn btn-outline-secondary" type="button" onclick="togglePass()" style="border-radius: 0 10px 10px 0;">
                         <i class="fas fa-eye" id="eyeIcon"></i>
                     </button>
