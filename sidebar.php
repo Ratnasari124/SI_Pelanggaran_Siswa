@@ -1,77 +1,148 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) session_start();
+$role = $_SESSION['role'] ?? '';
 $page_url = isset($_GET['page']) ? $_GET['page'] : 'beranda';
 $menu_aktif = explode('_', $page_url)[0];
 ?>
 
 <style>
-    /* Styling Dasar Sidebar */
+    /* 1. Sidebar lebih ramping */
     .sidebar {
         min-height: 100vh;
-        background-color: #2c3e50;
-        position: sticky;
-        top: 0;
-        padding-top: 20px;
+        background: #1e293b;
+        width: 200px; /* Lebar total dikurangi */
+        padding-top: 1rem;
+        transition: all 0.3s ease;
     }
 
-    /* Di layar HP (Mobile), kita buat sidebar overlay (menumpuk di atas konten) */
-    @media (max-width: 767.98px) {
-        .sidebar {
-            position: fixed;
-            width: 250px;
-            z-index: 1000;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.2);
-        }
+    /* 2. Brand area diperkecil */
+    .brand-area {
+        padding: 0 1rem 1rem 1rem;
+        text-align: center;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+        margin-bottom: 0.5rem;
+    }
+    .brand-name {
+        font-weight: 600;
+        color: #f8fafc;
+        font-size: 0.85rem; /* Ukuran teks diperkecil */
+        display: block;
+    }
+
+    /* 3. Group title lebih padat */
+    .menu-group-title {
+        font-size: 0.55rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        color: #475569;
+        padding: 1rem 1rem 0.25rem 1.25rem;
+        letter-spacing: 0.5px;
+    }
+
+    /* 4. Nav link lebih compact */
+    .sidebar .nav-link { 
+        color: #94a3b8; 
+        transition: all 0.2s ease; 
+        padding: 0.5rem 1rem; /* Padding dikurangi */
+        margin: 0.1rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.78rem; /* Font diperkecil agar tidak terlihat besar */
+        display: flex;
+        align-items: center;
+    }
+    
+    .sidebar .nav-link i { 
+        width: 16px; /* Ikon diperkecil */
+        margin-right: 10px; 
+        font-size: 0.85rem; 
+    }
+
+    /* Efek hover & aktif */
+    .sidebar .nav-link:hover { background: rgba(255,255,255,0.03); color: #ffffff; }
+    .sidebar .nav-link.aktif {
+        background: #3b82f6; 
+        color: #ffffff;
+    }
+    .sidebar-nav {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 80px); /* 80px adalah estimasi tinggi brand-area */
+    }
+
+    /* Ini kunci agar konten dorong logout ke bawah */
+    .menu-spacer {
+        flex-grow: 1;
+    }
+
+    /* Penyesuaian margin agar logout tidak menempel di pojok */
+    .logout-box {
+        padding-bottom: 20px;
     }
 </style>
 
-<!-- Tambahkan script kecil agar sidebar tertutup otomatis saat menu diklik (di HP) -->
+<div class="brand-area">
+    <i class="fas fa-shield-alt text-primary fa-2x mb-2"></i>
+    <span class="brand-name">Buku Pelanggaran</span>
+</div>
+
+<nav class="nav flex-column sidebar-nav">
+    <div>
+        <!-- DASHBOARD -->
+        <a class="nav-link <?= ($menu_aktif == 'beranda') ? 'aktif' : ''; ?>" href="index.php?page=beranda">
+            <i class="fas fa-th-large"></i> Dashboard
+        </a>
+
+        <!-- DATA MASTER -->
+        <?php if ($role == 'admin'): ?>
+            <div class="menu-group-title">Data Master</div>
+            <a class="nav-link <?= ($menu_aktif == 'kelas') ? 'aktif' : ''; ?>" href="index.php?page=kelas">
+                <i class="fas fa-graduation-cap"></i> Data Kelas
+            </a>
+            <a class="nav-link <?= ($menu_aktif == 'jenis') ? 'aktif' : ''; ?>" href="index.php?page=jenis">
+                <i class="fas fa-stream"></i> Jenis Pelanggaran
+            </a>
+            <a class="nav-link <?= ($menu_aktif == 'sanksi') ? 'aktif' : ''; ?>" href="index.php?page=sanksi">
+                <i class="fas fa-gavel"></i> Sanksi
+            </a>
+        <?php endif; ?>
+
+        <!-- OPERASIONAL -->
+        <div class="menu-group-title">Data Operasional</div>
+        <a class="nav-link <?= ($menu_aktif == 'siswa') ? 'aktif' : ''; ?>" href="index.php?page=siswa">
+            <i class="fas fa-user-graduate"></i> Data Siswa
+        </a>
+        <a class="nav-link <?= ($menu_aktif == 'pelanggaran') ? 'aktif' : ''; ?>" href="index.php?page=pelanggaran">
+            <i class="fas fa-clipboard-list"></i> Catat Pelanggaran
+        </a>
+
+        <!-- SISTEM -->
+        <?php if ($role == 'admin'): ?>
+            <div class="menu-group-title">Administrasi</div>
+            <a class="nav-link <?= ($menu_aktif == 'user') ? 'aktif' : ''; ?>" href="index.php?page=user">
+                <i class="fas fa-user-shield"></i> Manajemen User
+            </a>
+        <?php endif; ?>
+    </div>
+
+    <!-- PENGGUSUR (Spacer) agar logout terdorong ke bawah -->
+    <div class="menu-spacer"></div>
+
+    <!-- Tombol Logout -->
+    <div class="logout-box">
+        <a class="nav-link text-danger border-top pt-3" href="logout.php">
+            <i class="fas fa-sign-out-alt"></i> Keluar
+        </a>
+    </div>
+</nav>
+
 <script>
     document.querySelectorAll('.sidebar .nav-link').forEach(item => {
         item.addEventListener('click', () => {
-            const sidebar = document.querySelector('#sidebarMenu');
             if (window.innerWidth < 768) {
-                const bsCollapse = new bootstrap.Collapse(sidebar);
+                const sidebar = document.querySelector('#sidebarMenu');
+                const bsCollapse = bootstrap.Collapse.getInstance(sidebar) || new bootstrap.Collapse(sidebar);
                 bsCollapse.hide();
             }
         });
     });
 </script>
-
-<h4 class="text-white text-center py-3 border-bottom border-secondary">Buku Pelanggaran</h4>
-
-<nav class="nav flex-column mt-2">
-    <!-- DASHBOARD -->
-    <a class="nav-link <?= ($menu_aktif == 'beranda') ? 'aktif' : ''; ?>" href="index.php?page=beranda">
-        <i class="fas fa-home me-2"></i> Dashboard
-    </a>
-
-    <!-- DATA MASTER -->
-    <div class="menu-group-title">Data Master</div>
-    <a class="nav-link <?= ($menu_aktif == 'kelas') ? 'aktif' : ''; ?>" href="index.php?page=kelas">
-        <i class="fas fa-school me-2"></i> Data Kelas
-    </a>
-    <a class="nav-link <?= ($menu_aktif == 'jenis') ? 'aktif' : ''; ?>" href="index.php?page=jenis">
-        <i class="fas fa-list me-2"></i> Jenis Pelanggaran
-    </a>
-    <a class="nav-link <?= ($menu_aktif == 'sanksi') ? 'aktif' : ''; ?>" href="index.php?page=sanksi">
-        <i class="fas fa-gavel me-2"></i> Sanksi
-    </a>
-
-    <!-- DATA OPERASIONAL -->
-    <div class="menu-group-title">Data Transaksi</div>
-    <a class="nav-link <?= ($menu_aktif == 'siswa') ? 'aktif' : ''; ?>" href="index.php?page=siswa">
-        <i class="fas fa-users me-2"></i> Data Siswa
-    </a>
-    <a class="nav-link <?= ($menu_aktif == 'pelanggaran') ? 'aktif' : ''; ?>" href="index.php?page=pelanggaran">
-        <i class="fas fa-exclamation-triangle me-2"></i> Catat Pelanggaran
-    </a>
-
-    <!-- SISTEM -->
-    <div class="menu-group-title">Sistem</div>
-    <a class="nav-link <?= ($menu_aktif == 'user') ? 'aktif' : ''; ?>" href="index.php?page=user">
-        <i class="fas fa-user-cog me-2"></i> Manajemen User
-    </a>
-    <a class="nav-link text-danger" href="logout.php">
-        <i class="fas fa-sign-out-alt me-2"></i> Keluar
-    </a>
-</nav>

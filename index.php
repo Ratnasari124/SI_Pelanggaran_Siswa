@@ -68,6 +68,32 @@
                     echo "<h3>Halaman tidak ditemukan!</h3>";
                     echo "<p class='text-danger'>Sistem tidak dapat menemukan file di: $file_baru</p>";
                 }
+                // ... (setelah variabel $page dan $file_baru ditentukan) ...
+
+$role = $_SESSION['role'];
+
+// Definisi aturan akses
+$akses_terlarang = false;
+
+// Logika pembatasan akses
+if ($role == 'provoost') {
+    // Provoost hanya boleh akses dashboard dan pelanggaran (tambah saja)
+    $allowed = ['beranda', 'pelanggaran', 'pelanggaran_tambah'];
+    if (!in_array($page, $allowed)) {
+        $akses_terlarang = true;
+    }
+} elseif ($role == 'guru') {
+    // Guru boleh akses dashboard dan semua fitur pelanggaran
+    if (strpos($page, 'kelas') !== false || strpos($page, 'user') !== false || strpos($page, 'jenis') !== false) {
+        $akses_terlarang = true;
+    }
+}
+
+if ($akses_terlarang) {
+    echo "<script>Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin ke halaman ini.', 'error')
+          .then(() => { window.location.href='index.php?page=beranda'; });</script>";
+    exit;
+}
                 ?>
             </div>
         </div>
