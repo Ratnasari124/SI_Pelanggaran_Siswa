@@ -1,4 +1,22 @@
 <!DOCTYPE html>
+<style>
+    /* Styling Dasar */
+    .sidebar { min-height: 100vh; background-color: #2c3e50; }
+    
+    /* Responsive untuk Mobile */
+    @media (max-width: 767.98px) {
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 250px; /* Lebar sidebar di HP */
+            z-index: 1050; /* Biar di atas konten */
+            transition: all 0.3s;
+        }
+        /* Efek biar konten di belakang sidebar tidak bisa diklik saat sidebar terbuka */
+        .sidebar.collapse:not(.show) { display: none; }
+    }
+</style>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -18,8 +36,7 @@
 <body>
     <div class="container-fluid">
         <div class="row">
-            <!-- Sidebar untuk mode HP akan otomatis menyesuaikan dengan col-md-2 -->
-            <div class="col-md-2 col-12 sidebar p-0 d-md-block collapse" id="sidebarMenu">
+            <div class="col-md-2 p-0 collapse d-md-block sidebar" id="sidebarMenu">
                 <?php include 'sidebar.php'; ?>
             </div>
 
