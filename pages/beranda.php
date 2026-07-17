@@ -77,7 +77,7 @@ $q_top_jenis = mysqli_query($conn, "SELECT j.nama_pelanggaran, COUNT(p.id) as to
             <div class="card shadow-sm border-0 p-4 h-100" style="border-radius:20px">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h5 class="fw-bold m-0"><i class="fas fa-history text-primary me-2"></i> Aktivitas Terakhir</h5>
-                    <a href="index.php?page=pelanggaran" class="btn btn-primary rounded-pill px-4 shadow-sm">Lihat Semua</a>
+                    <a href="index.php?page=pelanggaran" class="btn btn-dark rounded-pill px-4 shadow-sm">Lihat Semua</a>
                 </div>
                 <table class="table table-hover align-middle">
                     <thead class="text-muted small">
