@@ -6,111 +6,272 @@ ini_set('display_errors', 1);
 // ==========================================
 // 1. HUBUNGKAN KE DATABASE (ANTI-TERSETAT)
 // ==========================================
-// Menggunakan dirname(__DIR__, 2) untuk naik 2 tingkat secara absolut dari folder /pages/pelanggaran/
 $path_koneksi = dirname(__DIR__, 2) . '/koneksi.php';
 
 if (file_exists($path_koneksi)) {
     include $path_koneksi;
 } else {
-    // Jalur cadangan jika file koneksi berada selevel dengan index.php di mode routing
     include '../../koneksi.php';
 }
 
 /** 
- * Memberitahu VS Code secara absolut bahwa variabel database adalah objek MySQLi yang valid.
  * @var mysqli $conn 
  * @var mysqli $koneksi
  */
 
-// Sinkronisasi variabel koneksi agar tidak undefined
 if (isset($conn) && !isset($koneksi)) {
     $koneksi = $conn;
 } elseif (isset($db) && !isset($koneksi)) {
     $koneksi = $db;
 }
 
-// Validasi akhir untuk memastikan koneksi benar-benar siap digunakan
 if (!isset($koneksi) || !$koneksi instanceof mysqli) {
     die("Error: Variabel koneksi database tidak ditemukan. Periksa nama variabel di file koneksi.php Anda.");
 }
 
 // ==========================================
-// 2. TANGKAP PARAMETER DARI URL
+// 2. TANGKAP PARAMETER URL SECARA MENYELURUH
 // ==========================================
-$id_siswa = isset($_GET['id']) ? (int)$_GET['id'] : (isset($_GET['id_siswa']) ? (int)$_GET['id_siswa'] : 0);
-$source = isset($_GET['source']) ? $_GET['source'] : 'menu'; 
+$id_target = 0;
+if (isset($_GET['id'])) {
+    $id_target = (int)$_GET['id'];
+} elseif (isset($_GET['id_siswa'])) {
+    $id_target = (int)$_GET['id_siswa'];
+} elseif (isset($_GET['id_kelompok'])) {
+    $id_target = (int)$_GET['id_kelompok'];
+}
 
-if ($id_siswa == 0) {
-    echo "<script>alert('Siswa tidak ditemukan!'); window.history.back();</script>";
+$source = isset($_GET['source']) ? htmlspecialchars($_GET['source']) : ''; 
+$page_aktif = isset($_GET['page']) ? htmlspecialchars($_GET['page']) : '';
+$action = isset($_GET['action']) ? htmlspecialchars($_GET['action']) : '';
+
+if ($id_target == 0) {
+    echo "<script>alert('Data target tidak ditemukan atau ID tidak valid!'); window.history.back();</script>";
     exit;
 }
 
 // ==========================================
-// 3. AMBIL DATA AKADEMIK SISWA (Sesuai skrip utama s.id & k.id)
+// 3. DETEKSI OTOMATIS JENIS MENU (PENGELOMPOKAN VS SEMUA)
 // ==========================================
-$query_siswa = "SELECT s.id, s.nis, s.nama AS nama_siswa, k.nama_kelas 
-                FROM siswa s 
-                LEFT JOIN kelas k ON s.id_kelas = k.id 
-                WHERE s.id = ? LIMIT 1";
-$stmt_siswa = $koneksi->prepare($query_siswa);
-$stmt_siswa->bind_param("i", $id_siswa);
-$stmt_siswa->execute();
-$result_siswa = $stmt_siswa->get_result();
-$siswa = $result_siswa->fetch_assoc();
+// Perbaikan Deteksi: Kita pastikan dulu apakah ID ini milik Jenis Pelanggaran atau Siswa
+$cek_jenis = mysqli_query($koneksi, "SELECT id, nama_pelanggaran FROM jenis_pelanggaran WHERE id = $id_target LIMIT 1");
 
-if (!$siswa) {
-    die("Data siswa tidak ditemukan di database. Pastikan ID Siswa valid.");
+if ($cek_jenis && mysqli_num_rows($cek_jenis) > 0 && ($source == 'pengelompokan' || $page_aktif == 'pengelompokan_detail' || !isset($_GET['id_siswa']))) {
+    // JIKA ID COCOK DENGAN JENIS PELANGGARAN, OTOMATIS MODE PENGELOMPOKAN
+    $is_mode_pengelompokan = true;
+    $siswa = null;
+} else {
+    // JIKA TIDAK, MAKA MASUK MODE SEMUA / DETAIL PER SISWA
+    $is_mode_pengelompokan = false;
+    $cek_siswa = mysqli_query($koneksi, "SELECT s.id, s.nis, s.nama AS nama_siswa, k.nama_kelas FROM siswa s LEFT JOIN kelas k ON s.id_kelas = k.id WHERE s.id = $id_target LIMIT 1");
+    $siswa = ($cek_siswa) ? mysqli_fetch_assoc($cek_siswa) : null;
 }
 
-// ==========================================
-// 4. HITUNG TOTAL KASUS DAN TOTAL POIN (Query JOIN Valid)
-// ==========================================
-$query_total = "SELECT COUNT(p.id) as total_kasus, IFNULL(SUM(j.poin), 0) as total_poin 
-                FROM pelanggaran p 
-                INNER JOIN jenis_pelanggaran j ON p.id_jenis = j.id 
-                WHERE p.id_siswa = ?";
-$stmt_total = $koneksi->prepare($query_total);
-$stmt_total->bind_param("i", $id_siswa);
-$stmt_total->execute();
-$stats = $stmt_total->get_result()->fetch_assoc();
-
-$total_kasus = isset($stats['total_kasus']) ? (int)$stats['total_kasus'] : 0;
-$total_poin = isset($stats['total_poin']) ? (int)$stats['total_poin'] : 0;
+// Inisialisasi variabel data
+$total_kasus = 0;
+$total_poin = 0;
+$data_kasus = [];
+$judul_halaman = "Detail Catatan Pelanggaran";
 
 // ==========================================
-// 5. AMBIL DAFTAR RIWAYAT PELANGGARAN SISWA
+// 4. QUERY DATA TABEL DINAMIS
 // ==========================================
-$query_kasus = "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, j.nama_pelanggaran, j.poin
-                FROM pelanggaran p 
-                INNER JOIN jenis_pelanggaran j ON p.id_jenis = j.id 
-                WHERE p.id_siswa = ? 
-                ORDER BY p.tanggal DESC, p.id DESC";
-$stmt_kasus = $koneksi->prepare($query_kasus);
-$stmt_kasus->bind_param("i", $id_siswa);
-$stmt_kasus->execute();
-$list_kasus = $stmt_kasus->get_result();
+if (!$is_mode_pengelompokan) {
+    // Jalur A: Menu Semua / Per Siswa
+    if ($siswa) {
+        $judul_halaman = "Detail Pelanggaran Siswa: " . $siswa['nama_siswa'];
+    }
+
+    // Hitung Statistik Utama Siswa
+    $query_total = "SELECT COUNT(p.id) as total_kasus, IFNULL(SUM(j.poin), 0) as total_poin 
+                    FROM pelanggaran p 
+                    INNER JOIN jenis_pelanggaran j ON p.id_jenis = j.id 
+                    WHERE p.id_siswa = ?";
+    $stmt_total = $koneksi->prepare($query_total);
+    $stmt_total->bind_param("i", $id_target);
+    $stmt_total->execute();
+    $stats = $stmt_total->get_result()->fetch_assoc();
+    $total_kasus = (int)$stats['total_kasus'];
+    $total_poin = (int)$stats['total_poin'];
+    $stmt_total->close();
+
+    // Ambil Riwayat Kasus Siswa
+    $query_kasus = "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, j.nama_pelanggaran, j.poin, 
+                           k.nama_kelas, s.nama, s.nis, p.id_siswa
+                    FROM pelanggaran p 
+                    INNER JOIN jenis_pelanggaran j ON p.id_jenis = j.id 
+                    INNER JOIN siswa s ON p.id_siswa = s.id
+                    LEFT JOIN kelas k ON s.id_kelas = k.id
+                    WHERE p.id_siswa = ? 
+                    ORDER BY p.tanggal DESC, p.id DESC";
+    $stmt_kasus = $koneksi->prepare($query_kasus);
+    $stmt_kasus->bind_param("i", $id_target);
+    $stmt_kasus->execute();
+    $list_kasus = $stmt_kasus->get_result();
+    while ($row = $list_kasus->fetch_assoc()) { $data_kasus[] = $row; }
+    $stmt_kasus->close();
+
+} else {
+    // Jalur B: Menu Pengelompokan Pelanggaran
+    $d_judul = mysqli_fetch_assoc($cek_jenis);
+    $judul_halaman = "Detail Kelompok: " . $d_judul['nama_pelanggaran'];
+
+    // Ambil daftar semua siswa yang masuk ke dalam kelompok pelanggaran ini
+    $query_kasus = "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, jp.nama_pelanggaran, jp.poin, 
+                           s.nama, s.nis, k.nama_kelas, p.id_siswa
+                    FROM pelanggaran p
+                    INNER JOIN siswa s ON p.id_siswa = s.id
+                    LEFT JOIN kelas k ON s.id_kelas = k.id
+                    INNER JOIN jenis_pelanggaran jp ON p.id_jenis = jp.id
+                    WHERE p.id_jenis = ? 
+                    ORDER BY p.tanggal DESC, p.id DESC";
+    $stmt_kasus = $koneksi->prepare($query_kasus);
+    $stmt_kasus->bind_param("i", $id_target);
+    $stmt_kasus->execute();
+    $list_kasus = $stmt_kasus->get_result();
+    while ($row = $list_kasus->fetch_assoc()) { $data_kasus[] = $row; }
+    $stmt_kasus->close();
+    
+    $total_kasus = count($data_kasus);
+    foreach ($data_kasus as $dk) { $total_poin += $dk['poin']; }
+}
+
+// ========================================================
+// 5. PROSES LIVE RENDER OUTPUT PDF (JIKA ACTION=CETAK)
+// ========================================================
+if ($action == 'cetak') {
+    if (ob_get_length()) ob_clean(); 
+    ?>
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+        <meta charset="UTF-8">
+        <title>Cetak PDF Laporan - <?= htmlspecialchars($judul_halaman) ?></title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+        <style>
+            body { font-family: 'Arial', sans-serif; font-size: 13px; color: #000; background: #fff; }
+            .garis-kop { border-bottom: 3px double #000; padding-bottom: 5px; margin-bottom: 20px; }
+            .table th { background-color: #f8f9fa !important; color: #000 !important; font-weight: bold; }
+            @media print {
+                .no-print { display: none !important; }
+                body { padding: 0; margin: 0; }
+                @page { size: A4 portrait; margin: 1.5cm; }
+            }
+        </style>
+    </head>
+    <body>
+    <div class="container-fluid mt-3">
+        <div class="no-print text-end mb-4">
+            <button onclick="window.print();" class="btn btn-primary btn-sm me-1"><i class="fas fa-print"></i> Cetak Dokumen</button>
+            <button onclick="window.close();" class="btn btn-secondary btn-sm">Tutup Tab</button>
+        </div>
+
+        <div class="garis-kop text-center">
+            <h4 class="mb-1 fw-bold">LAPORAN DATA DETIL PELANGGARAN TATA TERTIB SISWA</h4>
+            <p class="text-muted mb-2">Sistem Informasi Layanan Bimbingan Konseling (BK)</p>
+        </div>
+
+        <div class="card p-3 mb-3 bg-light border">
+            <table class="table table-sm table-borderless mb-0" style="font-size: 13px;">
+                <tr>
+                    <td width="20%"><strong>Jenis Laporan</strong></td>
+                    <td>: <?= htmlspecialchars($judul_halaman); ?></td>
+                    <td class="text-end">Total Kejadian: <strong><?= $total_kasus ?> Kasus</strong></td>
+                </tr>
+                <tr>
+                    <td><strong>Tanggal Cetak</strong></td>
+                    <td>: <?= date('d/m/Y H:i'); ?> WIB</td>
+                    <td class="text-end">Akumulasi Bobot: <strong class="text-danger"><?= $total_poin ?> Poin</strong></td>
+                </tr>
+                <?php if(!$is_mode_pengelompokan && $siswa): ?>
+                <tr>
+                    <td><strong>Siswa / Kelas</strong></td>
+                    <td colspan="2">: <?= htmlspecialchars($siswa['nama_siswa']) ?> (NIS: <?= htmlspecialchars($siswa['nis']) ?>) / Kelas: <?= htmlspecialchars($siswa['nama_kelas']) ?></td>
+                </tr>
+                <?php endif; ?>
+            </table>
+        </div>
+
+        <!-- Tabel Riwayat PDF -->
+        <table class="table table-bordered align-middle">
+            <thead>
+                <tr class="text-center">
+                    <th width="5%">No</th>
+                    <th width="15%">Tanggal</th>
+                    <?php if($is_mode_pengelompokan): ?>
+                        <th>Nama Siswa (Kelas)</th>
+                    <?php endif; ?>
+                    <th>Bentuk / Jenis Pelanggaran</th>
+                    <th width="10%">Poin</th>
+                    <th>Keterangan Tambahan</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (count($data_kasus) > 0): $no = 1; foreach ($data_kasus as $row): ?>
+                    <tr>
+                        <td class="text-center"><?= $no++; ?></td>
+                        <td class="text-center"><?= date('d-m-Y', strtotime($row['tanggal'])); ?></td>
+                        <?php if($is_mode_pengelompokan): ?>
+                            <td><strong><?= htmlspecialchars($row['nama']); ?></strong><br><small class="text-muted"><?= htmlspecialchars($row['nama_kelas']); ?> (NIS: <?= htmlspecialchars($row['nis']); ?>)</small></td>
+                        <?php endif; ?>
+                        <td><strong><?= htmlspecialchars($row['nama_pelanggaran']); ?></strong></td>
+                        <td class="text-center text-danger fw-bold">+<?= $row['poin']; ?></td>
+                        <td><?= htmlspecialchars($row['keterangan'] ?: '-'); ?></td>
+                    </tr>
+                <?php endforeach; else: ?>
+                    <tr><td colspan="<?= $is_mode_pengelompokan ? '6' : '5' ?>" class="text-center text-muted py-3">Tidak ada data rekap catatan pelanggaran.</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+
+        <div class="row mt-5 pt-3">
+            <div class="col-8"></div>
+            <div class="col-4 text-center">
+                <p class="mb-5">Mengetahui,<br>Guru Pembimbing / BK</p>
+                <p class="fw-bold text-decoration-underline" style="margin-top: 60px;">( _______________________ )</p>
+            </div>
+        </div>
+    </div>
+    <script>
+        window.addEventListener('DOMContentLoaded', () => { setTimeout(() => { window.print(); }, 400); });
+    </script>
+    </body>
+    </html>
+    <?php
+    exit;
+}
 ?>
 
-<!-- ================= TAMPILAN HTML DETAIL ================= -->
+<!-- ========================================================
+// 6. TAMPILAN INTERFACE UTAMA DASHBOARD ADMIN (NORMAL MODE)
+// ======================================================== -->
 <div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="mb-0 font-weight-bold text-dark"><i class="fas fa-user-shield me-2 text-primary"></i>Detail Rekap Pelanggaran</h4>
-        <?php if ($source == 'pengelompokan'): ?>
-            <a href="index.php?page=pelanggaran&view=pengelompokan" class="btn btn-secondary btn-sm shadow-sm"><i class="fa fa-arrow-left me-1"></i> Kembali</a>
-        <?php else: ?>
-            <a href="index.php?page=pelanggaran&view=semua" class="btn btn-secondary btn-sm shadow-sm"><i class="fa fa-arrow-left me-1"></i> Kembali</a>
-        <?php endif; ?>
+    <div class="card shadow-sm border-0 rounded-3 bg-white mb-4">
+        <div class="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold"><i class="fas fa-list text-warning me-2"></i><?= htmlspecialchars($judul_halaman) ?></h5>
+            <div class="d-flex gap-2">
+                <a href="index.php?page=<?= $page_aktif ?>&id=<?= $id_target ?>&source=<?= $source ?>&action=cetak" target="_blank" class="btn btn-danger btn-sm shadow-2xs">
+                    <i class="fas fa-file-pdf me-1"></i> Cetak PDF
+                </a>
+                <a href="javascript:void(0);" onclick="window.history.back();" class="btn btn-secondary btn-sm shadow-2xs">
+                    <i class="fas fa-arrow-left me-1"></i> Kembali
+                </a>
+            </div>
+        </div>
     </div>
 
-    <!-- Informasi Profil Akademik -->
     <div class="row mb-4">
         <div class="col-md-6 mb-3 mb-md-0">
-            <div class="card shadow-sm border-0 rounded-3 p-3 bg-white border-start border-primary border-3">
-                <h6 class="text-muted text-uppercase font-weight-bold mb-3" style="font-size: 0.8rem;">Informasi Akademik Siswa</h6>
+            <div class="card shadow-sm border-0 rounded-3 p-3 bg-white border-start border-primary border-3 h-100 d-flex flex-column justify-content-center">
+                <h6 class="text-muted text-uppercase font-weight-bold mb-2" style="font-size: 0.8rem;">Informasi Subjek Rekapitulasi</h6>
                 <table class="table table-borderless table-sm mb-0 small">
-                    <tr><td width="35%"><strong>Nama Lengkap</strong></td><td>: <?= htmlspecialchars($siswa['nama_siswa'] ?? ''); ?></td></tr>
-                    <tr><td><strong>NIS / NISN</strong></td><td>: <?= htmlspecialchars($siswa['nis'] ?? '-'); ?></td></tr>
-                    <tr><td><strong>Kelas</strong></td><td>: <?= htmlspecialchars($siswa['nama_kelas'] ?? '-'); ?></td></tr>
+                    <?php if (!$is_mode_pengelompokan && $siswa): ?>
+                        <tr><td width="30%"><strong>Nama Siswa</strong></td><td>: <?= htmlspecialchars($siswa['nama_siswa']); ?></td></tr>
+                        <tr><td><strong>NIS / Kelas</strong></td><td>: <?= htmlspecialchars($siswa['nis'] ?? '-'); ?> / <?= htmlspecialchars($siswa['nama_kelas'] ?? '-'); ?></td></tr>
+                    <?php else: ?>
+                        <tr><td width="30%"><strong>Kelompok</strong></td><td>: <?= htmlspecialchars($judul_halaman); ?></td></tr>
+                        <tr><td><strong>Format Data</strong></td><td>: Rekapitulasi Komponen Kolektif Pelanggaran</td></tr>
+                    <?php endif; ?>
                 </table>
             </div>
         </div>
@@ -128,10 +289,10 @@ $list_kasus = $stmt_kasus->get_result();
         </div>
     </div>
 
-    <!-- Tabel Riwayat Kasus -->
+    <!-- TABEL DATA UTAMA -->
     <div class="card shadow-sm border-0 rounded-3 bg-white">
         <div class="card-header bg-dark text-white font-weight-bold p-3">
-            <i class="fa fa-history me-1 text-warning"></i> Daftar Riwayat Catatan Pelanggaran
+            <i class="fa fa-history me-1 text-warning"></i> Lembar Riwayat Catatan
         </div>
         <div class="card-body p-0">
             <div class="table-responsive">
@@ -140,43 +301,50 @@ $list_kasus = $stmt_kasus->get_result();
                         <tr class="table-secondary text-center text-nowrap">
                             <th width="5%">No</th>
                             <th width="15%">Tanggal</th>
-                            <th>Bentuk Pelanggaran & Keterangan</th>
+                            <?php if($is_mode_pengelompokan): ?>
+                                <!-- Kolom Khusus Menu Pengelompokan -->
+                                <th>Biodata Siswa Pelanggar</th>
+                                <th>Kelas</th>
+                            <?php endif; ?>
+                            <th>Jenis / Bentuk Pelanggaran</th>
                             <th width="10%">Poin</th>
-                            <th width="15%" class="text-center">Aksi</th>
+                            <th>Keterangan Tambahan / Sanksi Lapangan</th>
+                            <th width="10%" class="text-center">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php 
-                        if ($list_kasus->num_rows > 0):
-                            $no = 1;
-                            while ($row = $list_kasus->fetch_assoc()):
-                        ?>
+                        <?php if (count($data_kasus) > 0): $no = 1; foreach ($data_kasus as $row): ?>
                         <tr>
                             <td class="text-center text-muted"><?= $no++; ?></td>
                             <td class="text-center text-nowrap"><?= date('d/m/Y', strtotime($row['tanggal'])); ?></td>
-                            <td>
-                                <strong class="text-dark"><?= htmlspecialchars($row['nama_pelanggaran']); ?></strong>
-                                <?php if(!empty($row['keterangan'])): ?>
-                                    <br><small class="text-muted">Ket: <?= htmlspecialchars($row['keterangan']); ?></small>
-                                <?php endif; ?>
-                            </td>
+                            
+                            <?php if($is_mode_pengelompokan): ?>
+                                <!-- Isi Kolom Khusus Menu Pengelompokan -->
+                                <td class="fw-semibold text-dark">
+                                    <?= htmlspecialchars($row['nama']); ?><br>
+                                    <small class="text-muted">NIS: <?= htmlspecialchars($row['nis']); ?></small>
+                                </td>
+                                <td class="text-center"><?= htmlspecialchars($row['nama_kelas']); ?></td>
+                            <?php endif; ?>
+
+                            <td><strong class="text-dark"><?= htmlspecialchars($row['nama_pelanggaran']); ?></strong></td>
                             <td class="text-center"><span class="badge bg-danger rounded-pill px-2 py-1">+<?= $row['poin']; ?></span></td>
+                            <td><span class="text-secondary small"><?= htmlspecialchars($row['keterangan'] ?: '-'); ?></span></td>
+                            
                             <td class="text-center text-nowrap">
-                                <a href="pages/pelanggaran/pelanggaran_hapus.php?id_kasus=<?= $row['id_kasus']; ?>&asal=detail&id_kelompok=<?= $id_siswa; ?>&source=<?= $source; ?>"
+                                <?php $id_kembali = $is_mode_pengelompokan ? $id_target : ($row['id_siswa'] ?? $id_target); ?>
+                                <a href="pages/pelanggaran/pelanggaran_hapus.php?id_kasus=<?= $row['id_kasus']; ?>&asal=detail&id_kelompok=<?= $id_kembali; ?>&source=<?= $source; ?>"
                                    onclick="return confirm('Apakah Anda yakin ingin menghapus catatan pelanggaran ini?');" 
-                                   class="btn btn-danger btn-sm px-2 py-1 d-inline-flex align-items-center gap-1 shadow-2xs">
-                                   <i class="fa fa-trash small"></i> Hapus
+                                   class="btn btn-danger btn-sm px-2 py-1 shadow-2xs">
+                                    <i class="fa fa-trash"></i>
                                 </a>
                             </td>
                         </tr>
-                        <?php 
-                            endwhile;
-                        else:
-                        ?>
+                        <?php endforeach; else: ?>
                         <tr>
-                            <td colspan="5" class="text-center text-muted py-5">
+                            <td colspan="<?= $is_mode_pengelompokan ? '7' : '5' ?>" class="text-center text-muted py-5">
                                 <i class="fas fa-folder-open fa-2x mb-2 opacity-50"></i><br>
-                                <em>Tidak ada riwayat catatan pelanggaran untuk siswa ini.</em>
+                                <em>Tidak ada data riwayat catatan pelanggaran yang ditemukan.</em>
                             </td>
                         </tr>
                         <?php endif; ?>
@@ -186,10 +354,3 @@ $list_kasus = $stmt_kasus->get_result();
         </div>
     </div>
 </div>
-
-<?php
-// Tutup statement
-$stmt_siswa->close();
-$stmt_total->close();
-$stmt_kasus->close();
-?>
