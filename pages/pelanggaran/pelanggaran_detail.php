@@ -1,424 +1,195 @@
 <?php
-/** @var mysqli $conn */
+// Aktifkan pelaporan error PHP untuk mempermudah pelacakan jika ada kendala
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+// ==========================================
+// 1. HUBUNGKAN KE DATABASE (ANTI-TERSETAT)
+// ==========================================
+// Menggunakan dirname(__DIR__, 2) untuk naik 2 tingkat secara absolut dari folder /pages/pelanggaran/
+$path_koneksi = dirname(__DIR__, 2) . '/koneksi.php';
+
+if (file_exists($path_koneksi)) {
+    include $path_koneksi;
+} else {
+    // Jalur cadangan jika file koneksi berada selevel dengan index.php di mode routing
+    include '../../koneksi.php';
 }
 
-// Mengambil ID dan Source (Sumber Menu asal)
-$id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-$source = isset($_GET['source']) ? $_GET['source'] : 'semua';
+/** 
+ * Memberitahu VS Code secara absolut bahwa variabel database adalah objek MySQLi yang valid.
+ * @var mysqli $conn 
+ * @var mysqli $koneksi
+ */
 
-// Menentukan URL Kembali berdasarkan asal menu
-$back_url = "index.php?page=pelanggaran&view=semua";
-if ($source === 'pengelompokan') {
-    $back_url = "index.php?page=pelanggaran&view=pengelompokan";
+// Sinkronisasi variabel koneksi agar tidak undefined
+if (isset($conn) && !isset($koneksi)) {
+    $koneksi = $conn;
+} elseif (isset($db) && !isset($koneksi)) {
+    $koneksi = $db;
 }
 
-// 1. JIKA SUMBER DARI MENU 'PENGELOMPOKAN' (ID adalah ID Siswa)
-if ($source === 'pengelompokan') {
-    $sql_siswa = "SELECT s.*, k.nama_kelas 
-                  FROM siswa s 
-                  LEFT JOIN kelas k ON s.id_kelas = k.id 
-                  WHERE s.id = '$id'";
-    $q_siswa = mysqli_query($conn, $sql_siswa);
-    $siswa = mysqli_fetch_assoc($q_siswa);
-
-    if (!$siswa) {
-        echo "<div class='alert alert-danger'>Data siswa tidak ditemukan.</div>";
-        exit;
-    }
-    
-    // Ambil semua riwayat pelanggaran milik siswa ini
-    $sql_kasus = "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, j.nama_pelanggaran, j.poin, u.nama_lengkap AS petugas
-                  FROM pelanggaran p
-                  JOIN jenis_pelanggaran j ON p.id_jenis = j.id
-                  LEFT JOIN users u ON p.id_user = u.id
-                  WHERE p.id_siswa = '$id'
-                  ORDER BY p.tanggal DESC";
-    $q_kasus = mysqli_query($conn, $sql_kasus);
-} 
-// 2. JIKA SUMBER DARI MENU 'SEMUA' (ID adalah ID Kasus Pelanggaran)
-else {
-    $sql_detail = "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, s.id AS id_siswa, s.nis, s.nama AS nama_siswa, 
-                          s.jenis_kelamin, k.nama_kelas, j.nama_pelanggaran, j.poin, u.nama_lengkap AS petugas
-                   FROM pelanggaran p
-                   JOIN siswa s ON p.id_siswa = s.id
-                   JOIN jenis_pelanggaran j ON p.id_jenis = j.id
-                   LEFT JOIN kelas k ON s.id_kelas = k.id
-                   LEFT JOIN users u ON p.id_user = u.id
-                   WHERE p.id = '$id'";
-    $q_detail = mysqli_query($conn, $sql_detail);
-    $detail = mysqli_fetch_assoc($q_detail);
-
-    if (!$detail) {
-        echo "<div class='alert alert-danger'>Data detail pelanggaran tidak ditemukan.</div>";
-        exit;
-    }
-
-    // Menyamakan struktur data siswa agar bagian Informasi Akademik tetap tampil
-    $siswa = [
-        'id' => $detail['id_siswa'],
-        'nis' => $detail['nis'],
-        'nama' => $detail['nama_siswa'],
-        'nama_kelas' => $detail['nama_kelas'],
-        'jenis_kelamin' => $detail['jenis_kelamin']
-    ];
-
-    // Dari menu 'semua', fokus menampilkan 1 kasus terpilih ini (seperti tampilan awal Anda)
-    $sql_kasus = "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, j.nama_pelanggaran, j.poin, u.nama_lengkap AS petugas
-                  FROM pelanggaran p
-                  JOIN jenis_pelanggaran j ON p.id_jenis = j.id
-                  LEFT JOIN users u ON p.id_user = u.id
-                  WHERE p.id = '$id'";
-    $q_kasus = mysqli_query($conn, $sql_kasus);
+// Validasi akhir untuk memastikan koneksi benar-benar siap digunakan
+if (!isset($koneksi) || !$koneksi instanceof mysqli) {
+    die("Error: Variabel koneksi database tidak ditemukan. Periksa nama variabel di file koneksi.php Anda.");
 }
 
-// Menghitung akumulasi data kasus ke dalam array
-$list_kasus = [];
-$total_poin = 0;
-while ($row = mysqli_fetch_assoc($q_kasus)) {
-    $list_kasus[] = $row;
-    $total_poin += $row['poin'];
+// ==========================================
+// 2. TANGKAP PARAMETER DARI URL
+// ==========================================
+$id_siswa = isset($_GET['id']) ? (int)$_GET['id'] : (isset($_GET['id_siswa']) ? (int)$_GET['id_siswa'] : 0);
+$source = isset($_GET['source']) ? $_GET['source'] : 'menu'; 
+
+if ($id_siswa == 0) {
+    echo "<script>alert('Siswa tidak ditemukan!'); window.history.back();</script>";
+    exit;
 }
-$total_kasus = count($list_kasus);
+
+// ==========================================
+// 3. AMBIL DATA AKADEMIK SISWA (Sesuai skrip utama s.id & k.id)
+// ==========================================
+$query_siswa = "SELECT s.id, s.nis, s.nama AS nama_siswa, k.nama_kelas 
+                FROM siswa s 
+                LEFT JOIN kelas k ON s.id_kelas = k.id 
+                WHERE s.id = ? LIMIT 1";
+$stmt_siswa = $koneksi->prepare($query_siswa);
+$stmt_siswa->bind_param("i", $id_siswa);
+$stmt_siswa->execute();
+$result_siswa = $stmt_siswa->get_result();
+$siswa = $result_siswa->fetch_assoc();
+
+if (!$siswa) {
+    die("Data siswa tidak ditemukan di database. Pastikan ID Siswa valid.");
+}
+
+// ==========================================
+// 4. HITUNG TOTAL KASUS DAN TOTAL POIN (Query JOIN Valid)
+// ==========================================
+$query_total = "SELECT COUNT(p.id) as total_kasus, IFNULL(SUM(j.poin), 0) as total_poin 
+                FROM pelanggaran p 
+                INNER JOIN jenis_pelanggaran j ON p.id_jenis = j.id 
+                WHERE p.id_siswa = ?";
+$stmt_total = $koneksi->prepare($query_total);
+$stmt_total->bind_param("i", $id_siswa);
+$stmt_total->execute();
+$stats = $stmt_total->get_result()->fetch_assoc();
+
+$total_kasus = isset($stats['total_kasus']) ? (int)$stats['total_kasus'] : 0;
+$total_poin = isset($stats['total_poin']) ? (int)$stats['total_poin'] : 0;
+
+// ==========================================
+// 5. AMBIL DAFTAR RIWAYAT PELANGGARAN SISWA
+// ==========================================
+$query_kasus = "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, j.nama_pelanggaran, j.poin
+                FROM pelanggaran p 
+                INNER JOIN jenis_pelanggaran j ON p.id_jenis = j.id 
+                WHERE p.id_siswa = ? 
+                ORDER BY p.tanggal DESC, p.id DESC";
+$stmt_kasus = $koneksi->prepare($query_kasus);
+$stmt_kasus->bind_param("i", $id_siswa);
+$stmt_kasus->execute();
+$list_kasus = $stmt_kasus->get_result();
 ?>
 
-<div class="container-fluid py-3 section-no-print">
-    <!-- Header Menu & Tombol Aksi -->
-    <div class="card shadow-sm border-0 rounded-3 mb-4 bg-white">
-        <div class="card-body p-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
-            <div>
-                <h5 class="fw-bold mb-1 text-dark"><i class="fas fa-info-circle text-info me-2"></i>Detail Rekap Pelanggaran</h5>
-                <small class="text-muted">Informasi riwayat dan akumulasi poin pelanggaran siswa.</small>
+<!-- ================= TAMPILAN HTML DETAIL ================= -->
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0 font-weight-bold text-dark"><i class="fas fa-user-shield me-2 text-primary"></i>Detail Rekap Pelanggaran</h4>
+        <?php if ($source == 'pengelompokan'): ?>
+            <a href="index.php?page=pelanggaran&view=pengelompokan" class="btn btn-secondary btn-sm shadow-sm"><i class="fa fa-arrow-left me-1"></i> Kembali</a>
+        <?php else: ?>
+            <a href="index.php?page=pelanggaran&view=semua" class="btn btn-secondary btn-sm shadow-sm"><i class="fa fa-arrow-left me-1"></i> Kembali</a>
+        <?php endif; ?>
+    </div>
+
+    <!-- Informasi Profil Akademik -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3 mb-md-0">
+            <div class="card shadow-sm border-0 rounded-3 p-3 bg-white border-start border-primary border-3">
+                <h6 class="text-muted text-uppercase font-weight-bold mb-3" style="font-size: 0.8rem;">Informasi Akademik Siswa</h6>
+                <table class="table table-borderless table-sm mb-0 small">
+                    <tr><td width="35%"><strong>Nama Lengkap</strong></td><td>: <?= htmlspecialchars($siswa['nama_siswa'] ?? ''); ?></td></tr>
+                    <tr><td><strong>NIS / NISN</strong></td><td>: <?= htmlspecialchars($siswa['nis'] ?? '-'); ?></td></tr>
+                    <tr><td><strong>Kelas</strong></td><td>: <?= htmlspecialchars($siswa['nama_kelas'] ?? '-'); ?></td></tr>
+                </table>
             </div>
-            <div class="d-flex gap-2">
-                <button type="button" class="btn btn-secondary btn-sm px-3 shadow-2xs d-inline-flex align-items-center" onclick="cetakHalaman()">
-                    <i class="fas fa-print me-1"></i> Cetak PDF
-                </button>
-                <a href="<?= $back_url ?>" class="btn btn-light btn-sm px-3 border shadow-2xs">
-                    <i class="fas fa-arrow-left me-1"></i> Kembali
-                </a>
+        </div>
+        <div class="col-md-3 col-sm-6 mb-3 mb-md-0">
+            <div class="card bg-info text-white shadow-sm border-0 rounded-3 p-3 text-center h-100 d-flex flex-column justify-content-center">
+                <h6 class="text-uppercase mb-1 opacity-75" style="font-size: 0.75rem;">Total Kasus</h6>
+                <h3 class="font-weight-bold mb-0"><?= $total_kasus; ?> Kejadian</h3>
+            </div>
+        </div>
+        <div class="col-md-3 col-sm-6">
+            <div class="card bg-danger text-white shadow-sm border-0 rounded-3 p-3 text-center h-100 d-flex flex-column justify-content-center">
+                <h6 class="text-uppercase mb-1 opacity-75" style="font-size: 0.75rem;">Akumulasi Poin</h6>
+                <h3 class="font-weight-bold mb-0">+ <?= $total_poin; ?> Poin</h3>
             </div>
         </div>
     </div>
 
-    <!-- TAMPILAN JIKA DIAKSES DARI MENU PENGELOMPOKAN (Layout Full-Width dengan Tabel Tunggal di Bawah) -->
-    <?php if ($source === 'pengelompokan'): ?>
-        <div class="row g-4 mb-4">
-            <!-- Kolom Biodata Siswa -->
-            <div class="col-md-6">
-                <div class="card border-0 shadow-sm rounded-3 bg-white h-100">
-                    <div class="card-header bg-dark text-white fw-bold py-3">
-                        <i class="fas fa-user-graduation me-2"></i>Informasi Akademik Siswa
-                    </div>
-                    <div class="card-body p-4">
-                        <table class="table table-sm table-borderless mb-0 align-middle" style="font-size: 0.95rem;">
-                            <tr>
-                                <td width="30%" class="text-secondary pb-2">Nama Lengkap</td>
-                                <td width="5%" class="text-muted pb-2">:</td>
-                                <td class="fw-bold text-dark pb-2"><?= htmlspecialchars($siswa['nama']) ?></td>
-                            </tr>
-                            <tr>
-                                <td class="text-secondary pb-2">NIS / NISN</td>
-                                <td class="text-muted pb-2">:</td>
-                                <td class="font-monospace text-secondary pb-2"><?= htmlspecialchars($siswa['nis']) ?></td>
-                            </tr>
-                            <tr>
-                                <td class="text-secondary pb-2">Kelas</td>
-                                <td class="text-muted pb-2">:</td>
-                                <td class="pb-2"><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($siswa['nama_kelas'] ?? '-') ?></span></td>
-                            </tr>
-                            <tr>
-                                <td class="text-secondary">Jenis Kelamin</td>
-                                <td class="text-muted">:</td>
-                                <td><?= isset($siswa['jenis_kelamin']) && $siswa['jenis_kelamin'] == 'L' ? 'Laki-laki' : 'Perempuan' ?></td>
-                            </tr>
-                        </table>
-                    </div>
-                </div>
-            </div>
-            <!-- Kolom Ringkasan Akumulasi Poin -->
-            <div class="col-md-6">
-                <div class="row g-3 h-100 align-content-start">
-                    <div class="col-12 col-sm-6">
-                        <div class="card border-0 bg-primary text-white shadow-sm rounded-3 p-4">
-                            <small class="opacity-75 d-block mb-1 font-monospace">TOTAL KASUS</small>
-                            <h2 class="fw-bold mb-0"><?= $total_kasus ?> <span style="font-size: 1.1rem; font-weight: normal;">Kejadian</span></h2>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-6">
-                        <div class="card border-0 bg-danger text-white shadow-sm rounded-3 p-4">
-                            <small class="opacity-75 d-block mb-1 font-monospace">AKUMULASI POIN</small>
-                            <h2 class="fw-bold mb-0">+<?= $total_poin ?> <span style="font-size: 1.1rem; font-weight: normal;">Poin</span></h2>
-                        </div>
-                    </div>
-                </div>
+    <!-- Tabel Riwayat Kasus -->
+    <div class="card shadow-sm border-0 rounded-3 bg-white">
+        <div class="card-header bg-dark text-white font-weight-bold p-3">
+            <i class="fa fa-history me-1 text-warning"></i> Daftar Riwayat Catatan Pelanggaran
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle mb-0" style="font-size: 0.9rem;">
+                    <thead>
+                        <tr class="table-secondary text-center text-nowrap">
+                            <th width="5%">No</th>
+                            <th width="15%">Tanggal</th>
+                            <th>Bentuk Pelanggaran & Keterangan</th>
+                            <th width="10%">Poin</th>
+                            <th width="15%" class="text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        if ($list_kasus->num_rows > 0):
+                            $no = 1;
+                            while ($row = $list_kasus->fetch_assoc()):
+                        ?>
+                        <tr>
+                            <td class="text-center text-muted"><?= $no++; ?></td>
+                            <td class="text-center text-nowrap"><?= date('d/m/Y', strtotime($row['tanggal'])); ?></td>
+                            <td>
+                                <strong class="text-dark"><?= htmlspecialchars($row['nama_pelanggaran']); ?></strong>
+                                <?php if(!empty($row['keterangan'])): ?>
+                                    <br><small class="text-muted">Ket: <?= htmlspecialchars($row['keterangan']); ?></small>
+                                <?php endif; ?>
+                            </td>
+                            <td class="text-center"><span class="badge bg-danger rounded-pill px-2 py-1">+<?= $row['poin']; ?></span></td>
+                            <td class="text-center text-nowrap">
+                                <a href="pages/pelanggaran/pelanggaran_hapus.php?id_kasus=<?= $row['id_kasus']; ?>&asal=detail&id_kelompok=<?= $id_siswa; ?>&source=<?= $source; ?>"
+                                   onclick="return confirm('Apakah Anda yakin ingin menghapus catatan pelanggaran ini?');" 
+                                   class="btn btn-danger btn-sm px-2 py-1 d-inline-flex align-items-center gap-1 shadow-2xs">
+                                   <i class="fa fa-trash small"></i> Hapus
+                                </a>
+                            </td>
+                        </tr>
+                        <?php 
+                            endwhile;
+                        else:
+                        ?>
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-5">
+                                <i class="fas fa-folder-open fa-2x mb-2 opacity-50"></i><br>
+                                <em>Tidak ada riwayat catatan pelanggaran untuk siswa ini.</em>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
-
-        <!-- PERBAIKAN: TABEL UTUH REKAP PELANGGARAN BERDASARKAN KOLOM ANDA -->
-        <div class="card border-0 shadow-sm rounded-3 bg-white mb-4">
-            <div class="card-header bg-secondary text-white fw-bold py-3">
-                <i class="fas fa-list me-2"></i>Daftar Riwayat Kasus & Sanksi Pelanggaran Siswa
-            </div>
-            <div class="card-body p-3">
-                <div class="table-responsive">
-                    <table class="table table-bordered table-striped table-hover mb-0 align-middle" style="font-size: 0.9rem;">
-                        <thead class="table-light text-nowrap">
-                            <tr>
-                                <th width="5%" class="text-center">No</th>
-                                <th width="10%">Tanggal</th>
-                                <th width="15%">Petugas</th>
-                                <th width="20%">Jenis Pelanggaran</th>
-                                <th width="8%" class="text-center">Poin</th>
-                                <th>Bentuk & Keterangan Pelanggaran</th>
-                                <th width="15%">Sanksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php
-                            if($total_kasus > 0) {
-                                $no_s = 1;
-                                foreach($list_kasus as $kasus) {
-                                    $tgl_c = date('d/m/Y', strtotime($kasus['tanggal']));
-                                    
-                                    // Logika Sanksi dinamis berdasarkan besaran poin kasus tersebut
-                                    $poin_p = $kasus['poin'];
-                                    $sanksi_teks = "Teguran Lisan";
-                                    if ($poin_p >= 75) { $sanksi_teks = "Skorsing / Drop Out"; } 
-                                    elseif ($poin_p >= 50) { $sanksi_teks = "Pemanggilan Orang Tua"; } 
-                                    elseif ($poin_p >= 25) { $sanksi_teks = "Surat Peringatan (SP)"; } 
-                                    elseif ($poin_p >= 10) { $sanksi_teks = "Teguran Tertulis"; }
-                            ?>
-                                    <tr>
-                                        <td class="text-center text-muted"><?= $no_s++ ?></td>
-                                        <td class="text-secondary text-nowrap"><?= $tgl_c ?></td>
-                                        <td class="small text-secondary"><?= htmlspecialchars($kasus['petugas'] ?? 'Sistem') ?></td>
-                                        <td class="fw-bold text-dark"><?= htmlspecialchars($kasus['nama_pelanggaran']) ?></td>
-                                        <td class="text-center fw-bold text-danger">+<?= $poin_p ?></td>
-                                        <td><?= htmlspecialchars($kasus['keterangan'] ?: '-') ?></td>
-                                        <td><span class="badge bg-warning text-dark fw-semibold"><?= $sanksi_teks ?></span></td>
-                                    </tr>
-                            <?php
-                                }
-                            } else {
-                                echo '<tr><td colspan="7" class="text-center text-muted py-4"><em>Siswa tidak memiliki riwayat pelanggaran.</em></td></tr>';
-                            }
-                            ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-    <!-- TAMPILAN JIKA DIAKSES DARI MENU SEMUA (Kembali Ke Tampilan Awal: Kiri Biodata, Kanan Log Kasus Tunggal) -->
-    <?php else: ?>
-        <div class="row g-4">
-            <!-- Kolom Kiri: Informasi Akademik -->
-            <div class="col-md-5">
-                <div class="card border-0 shadow-sm rounded-3 bg-white mb-4">
-                    <div class="card-header bg-dark text-white fw-bold py-3">
-                        <i class="fas fa-user-graduation me-2"></i>Informasi Akademik Siswa
-                    </div>
-                    <div class="card-body p-4">
-                        <table class="table table-sm table-borderless mb-0 align-middle" style="font-size: 0.95rem;">
-                            <tr>
-                                <td width="35%" class="text-secondary pb-2">Nama Lengkap</td>
-                                <td width="5%" class="text-muted pb-2">:</td>
-                                <td class="fw-bold text-dark pb-2"><?= htmlspecialchars($siswa['nama']) ?></td>
-                            </tr>
-                            <tr>
-                                <td class="text-secondary pb-2">NIS / NISN</td>
-                                <td class="text-muted pb-2">:</td>
-                                <td class="font-monospace text-secondary pb-2"><?= htmlspecialchars($siswa['nis']) ?></td>
-                            </tr>
-                            <tr>
-                                <td class="text-secondary pb-2">Kelas</td>
-                                <td class="text-muted pb-2">:</td>
-                                <td class="pb-2"><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($siswa['nama_kelas'] ?? '-') ?></span></td>
-                            </tr>
-                            <tr>
-                                <td class="text-secondary">Jenis Kelamin</td>
-                                <td class="text-muted">:</td>
-                                <td><?= isset($siswa['jenis_kelamin']) && $siswa['jenis_kelamin'] == 'L' ? 'Laki-laki' : 'Perempuan' ?></td>
-                            </tr>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Kolom Kanan: Detail Kasus Terpilih -->
-            <div class="col-md-7">
-                <div class="row g-3 mb-4">
-                    <div class="col-6">
-                        <div class="card border-0 bg-primary text-white shadow-sm rounded-3 p-3">
-                            <small class="opacity-75 d-block mb-1 font-monospace">TOTAL KASUS</small>
-                            <h3 class="fw-bold mb-0"><?= $total_kasus ?> <span style="font-size: 1rem; font-weight: normal;">Kejadian</span></h3>
-                        </div>
-                    </div>
-                    <div class="col-6">
-                        <div class="card border-0 bg-danger text-white shadow-sm rounded-3 p-3">
-                            <small class="opacity-75 d-block mb-1 font-monospace">AKUMULASI POIN</small>
-                            <h3 class="fw-bold mb-0">+<?= $total_poin ?> <span style="font-size: 1rem; font-weight: normal;">Poin</span></h3>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card border-0 shadow-sm rounded-3 bg-white">
-                    <div class="card-header bg-danger text-white fw-bold py-3">
-                        <i class="fas fa-history me-2"></i>Detail Kasus Pelanggaran Terpilih
-                    </div>
-                    <div class="card-body p-3">
-                        <div class="table-responsive">
-                            <table class="table table-hover align-middle border mb-0" style="font-size: 0.9rem;">
-                                <thead class="table-dark text-nowrap">
-                                    <tr>
-                                        <th width="5%" class="text-center">No</th>
-                                        <th width="15%">Tanggal</th>
-                                        <th>Bentuk & Keterangan Pelanggaran</th>
-                                        <th width="12%" class="text-center">Poin</th>
-                                        <th width="20%">Petugas</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php
-                                    if ($total_kasus > 0) {
-                                        $no_k = 1;
-                                        foreach ($list_kasus as $kasus) {
-                                            $tgl_c = date('d/m/Y', strtotime($kasus['tanggal']));
-                                    ?>
-                                            <tr>
-                                                <td class="text-center text-muted"><?= $no_k++ ?></td>
-                                                <td class="text-secondary"><?= $tgl_c ?></td>
-                                                <td>
-                                                    <span class="d-block fw-bold text-danger"><?= htmlspecialchars($kasus['nama_pelanggaran']) ?></span>
-                                                    <small class="text-muted"><?= htmlspecialchars($kasus['keterangan'] ?: '-') ?></small>
-                                                </td>
-                                                <td class="text-center"><span class="badge bg-danger rounded-pill px-2 py-1">+<?= $kasus['poin'] ?></span></td>
-                                                <td class="small text-secondary"><?= htmlspecialchars($kasus['petugas'] ?? 'Sistem') ?></td>
-                                            </tr>
-                                    <?php
-                                        }
-                                    } else {
-                                        echo '<tr><td colspan="5" class="text-center py-4 text-muted"><em>Tidak ada catatan log pelanggaran.</em></td></tr>';
-                                    }
-                                    ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    <?php endif; ?>
-</div>
-
-<!-- ======================================================== -->
-<!-- SECTION KHUSUS PRINT TAMPILAN LEMBAR SIAP CETAK          -->
-<!-- ======================================================== -->
-<div id="printArea" class="section-to-print d-none">
-    <div style="text-align: center; border-bottom: 3px double #000; padding-bottom: 10px; margin-bottom: 20px;">
-        <h2 style="margin: 0; text-transform: uppercase;">SURAT DOKUMEN REKAP PELANGGARAN SISWA</h2>
-        <p style="margin: 5px 0 0 0;">Laporan Akumulasi Poin Pelanggaran Kedisiplinan</p>
     </div>
-
-    <table style="width: 100%; margin-bottom: 20px; font-size: 14px;" cellpadding="5">
-        <tr>
-            <td width="20%"><strong>Nama Siswa</strong></td><td width="2%">:</td><td><?= htmlspecialchars($siswa['nama']) ?></td>
-            <td width="20%"><strong>Total Kasus</strong></td><td width="2%">:</td><td><?= $total_kasus ?> Kasus</td>
-        </tr>
-        <tr>
-            <td><strong>NIS / NISN</strong></td><td>:</td><td><?= htmlspecialchars($siswa['nis']) ?></td>
-            <td><strong>Akumulasi Poin</strong></td><td>:</td><td><strong><?= $total_poin ?> Poin</strong></td>
-        </tr>
-        <tr>
-            <td><strong>Kelas</strong></td><td>:</td><td><?= htmlspecialchars($siswa['nama_kelas'] ?? '-') ?></td>
-            <td><strong>Jenis Kelamin</strong></td><td>:</td><td><?= isset($siswa['jenis_kelamin']) && $siswa['jenis_kelamin'] == 'L' ? 'Laki-laki' : 'Perempuan' ?></td>
-        </tr>
-    </table>
-
-    <h4 style="margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px;">Detail Pelanggaran Yang Tercetak:</h4>
-    <table style="width: 100%; border-collapse: collapse; font-size: 13px;" border="1" cellpadding="6">
-        <thead>
-            <tr style="background-color: #f2f2f2;">
-                <th width="5%">No</th>
-                <th width="12%">Tanggal</th>
-                <th width="15%">Petugas</th>
-                <th width="20%">Jenis Pelanggaran</th>
-                <th width="8%">Poin</th>
-                <th>Bentuk & Keterangan</th>
-                <th width="15%">Sanksi</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php
-            if ($total_kasus > 0) {
-                $no_p = 1;
-                foreach ($list_kasus as $kasus) {
-                    $poin_p = $kasus['poin'];
-                    $sanksi_teks = "Teguran Lisan";
-                    if ($poin_p >= 75) { $sanksi_teks = "Skorsing / Drop Out"; } 
-                    elseif ($poin_p >= 50) { $sanksi_teks = "Pemanggilan Orang Tua"; } 
-                    elseif ($poin_p >= 25) { $sanksi_teks = "Surat Peringatan (SP)"; } 
-                    elseif ($poin_p >= 10) { $sanksi_teks = "Teguran Tertulis"; }
-            ?>
-                    <tr>
-                        <td align="center"><?= $no_p++ ?></td>
-                        <td><?= date('d/m/Y', strtotime($kasus['tanggal'])) ?></td>
-                        <td><?= htmlspecialchars($kasus['petugas'] ?? 'Sistem') ?></td>
-                        <td><strong><?= htmlspecialchars($kasus['nama_pelanggaran']) ?></strong></td>
-                        <td align="center">+<?= $poin_p ?></td>
-                        <td><?= htmlspecialchars($kasus['keterangan'] ?: '-') ?></td>
-                        <td><?= $sanksi_teks ?></td>
-                    </tr>
-            <?php
-                }
-            } else {
-                echo '<tr><td colspan="7" align="center">Tidak ada riwayat pelanggaran.</td></tr>';
-            }
-            ?>
-        </tbody>
-    </table>
-
-    <table style="width: 100%; margin-top: 50px; font-size: 14px;">
-        <tr>
-            <td width="50%"></td>
-            <td align="center">
-                Kepala Sekolah / Petugas BK<br><br><br><br>
-                ( ___________________________ )
-            </td>
-        </tr>
-    </table>
 </div>
 
-<script>
-function cetakHalaman() {
-    window.print();
-    setTimeout(function() {
-        window.location.href = "<?= $back_url ?>";
-    }, 500);
-}
-</script>
-
-<style>
-    .shadow-2xs { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-    @media print {
-        body * {
-            visibility: hidden;
-        }
-        #printArea, #printArea * {
-            visibility: visible;
-        }
-        #printArea {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            display: block !important;
-        }
-        .section-no-print {
-            display: none !important;
-        }
-    }
-</style>
+<?php
+// Tutup statement
+$stmt_siswa->close();
+$stmt_total->close();
+$stmt_kasus->close();
+?>

@@ -6,7 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // ==========================================
-// 1. PROSES AJAX UNTUK LIVE SEARCH AUTOCOMPLETE FORM TAMBAH (DIPERBAIKI)
+// 1. PROSES AJAX UNTUK LIVE SEARCH AUTOCOMPLETE
 // ==========================================
 if (isset($_GET['action']) && $_GET['action'] == 'search_siswa') {
     $keyword = mysqli_real_escape_string($conn, $_GET['keyword']);
@@ -35,7 +35,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'search_jenis') {
 }
 
 // ==========================================
-// 2. PROSES AKSI POST FORM (TAMBAH / EDIT / HAPUS)
+// 2. PROSES AKSI POST FORM (TAMBAH / EDIT)
 // ==========================================
 $alert = '';
 if (isset($_POST['simpan_pelanggaran'])) {
@@ -59,17 +59,6 @@ if (isset($_POST['simpan_pelanggaran'])) {
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                       </div>';
         }
-    }
-}
-
-if (isset($_GET['hapus'])) {
-    $id_hapus = intval($_GET['hapus']);
-    $del = mysqli_query($conn, "DELETE FROM pelanggaran WHERE id = '$id_hapus'");
-    if($del) {
-        $alert = '<div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <strong>Berhasil!</strong> Data pelanggaran telah dihapus dari sistem.
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                  </div>';
     }
 }
 
@@ -109,6 +98,7 @@ $tgl_akhir = isset($_GET['tgl_akhir']) ? mysqli_real_escape_string($conn, $_GET[
         </div>
     <?php endif; ?>
 
+    <!-- ================= VIEW PENGELOMPOKAN SISWA ================= -->
     <?php if ($view_type == 'pengelompokan'): ?>
         <div class="card border-0 shadow-sm rounded-3 bg-white">
             <div class="card-body p-4">
@@ -122,7 +112,7 @@ $tgl_akhir = isset($_GET['tgl_akhir']) ? mysqli_real_escape_string($conn, $_GET[
                             <button type="submit" class="btn btn-primary btn-sm px-3">Cari</button>
                         </div>
                     </form>
-                    <a href="index.php?page=pelanggaran_tambah" class="btn btn-danger btn-sm px-3 shadow-sm d-inline-flex align-items-center justify-content-center" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
+                    <a href="index.php?page=pelanggaran_tambah" class="btn btn-danger btn-sm px-3 shadow-sm d-inline-flex align-items-center justify-content-center">
                         <i class="fas fa-plus me-1"></i> Tambah
                     </a>
                 </div>
@@ -164,24 +154,32 @@ $tgl_akhir = isset($_GET['tgl_akhir']) ? mysqli_real_escape_string($conn, $_GET[
                                 while($row = mysqli_fetch_assoc($q_grup)) {
                             ?>
                                     <tr>
-                                        <td class="text-center text-muted"><?= $no++ ?></td>
-                                        <td class="font-monospace text-secondary"><?= htmlspecialchars($row['nis']) ?></td>
-                                        <td class="fw-bold text-dark"><?= htmlspecialchars($row['nama_siswa']) ?></td>
-                                        <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($row['nama_kelas'] ?? '-') ?></span></td>
-                                        <td class="text-center fw-semibold text-primary"><?= $row['total_kasus'] ?> Kasus</td>
-                                        <td class="text-center">
-                                            <span class="badge bg-danger rounded-pill px-3 py-1">+ <?= $row['total_poin'] ?></span>
+                                        <td class="text-center align-middle"><?= $no++; ?></td>
+                                        <td class="align-middle font-monospace text-secondary"><?= htmlspecialchars($row['nis']) ?></td>
+                                        <td class="align-middle fw-bold"><?= htmlspecialchars($row['nama_siswa']) ?></td>
+                                        <td class="text-center align-middle">
+                                            <span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($row['nama_kelas'] ?? '-') ?></span>
                                         </td>
-                                        <td class="text-center">
-                                            <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_siswa'] ?>&source=pengelompokan" class="btn btn-info btn-xs text-white me-1 shadow-2xs">
-                                                <i class="fas fa-eye"></i> Detail Rekap
-                                                <a href="pelanggaran-hapus.php?id=<?= $row['id_siswa'] ?>&source=pengelompokan" 
-                                                <a href="pelanggaran_hpus.php?id=<?= $row['id_siswa'] ?>&source=pengelompokan" 
-                                                      <a href="pelanggaran_hpus.php?id=<?= $row['id_siswa'] ?>&source=pengelompokan" 
-                                                        onclick="return confirm('Peringatan! Menghapus ini akan menghapus SELURUH riwayat catatan pelanggaran milik siswa ini. Apakah Anda yakin?')" 
-                                                        class="btn btn-danger btn-sm">
-                                                <i class="fas fa-trash"></i> Hapus
-                                            </a>
+                                        <td class="text-center align-middle fw-bold text-primary"><?= $row['total_kasus'] ?> Kasus</td>
+                                        <td class="text-center align-middle">
+                                            <span class="badge bg-danger rounded-pill px-3 py-2 fs-6">+ <?= $row['total_poin'] ?></span>
+                                        </td>
+                                        <td class="text-center align-middle text-nowrap">
+                                            <div class="d-inline-flex align-items-center justify-content-center gap-1">
+                                                <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_siswa'] ?>&source=pengelompokan" 
+                                                   class="btn btn-info btn-sm text-white px-2 py-1 d-inline-flex align-items-center gap-1 shadow-2xs" 
+                                                   title="Lihat Detail Rekap Siswa">
+                                                    <i class="fas fa-eye small"></i>
+                                                    <span>Detail Rekap</span>
+                                                </a>
+                                                
+                                                <a href="index.php?page=pelanggaran_edit&id=<?= $row['id_siswa'] ?>&source=pengelompokan" 
+                                                   class="btn btn-warning btn-sm text-dark fw-semibold px-2 py-1 d-inline-flex align-items-center gap-1 shadow-2xs" 
+                                                   title="Edit Catatan Terakhir">
+                                                    <i class="fas fa-edit small"></i>
+                                                    <span>Edit</span>
+                                                </a>
+                                            </div>
                                         </td>
                                     </tr>
                             <?php
@@ -197,6 +195,7 @@ $tgl_akhir = isset($_GET['tgl_akhir']) ? mysqli_real_escape_string($conn, $_GET[
         </div>
     <?php endif; ?>
 
+    <!-- ================= VIEW SEMUA PELANGGARAN ================= -->
     <?php if ($view_type == 'semua'): ?>
         <div class="card border-0 shadow-sm rounded-3 bg-white">
             <div class="card-body p-4">
@@ -219,8 +218,7 @@ $tgl_akhir = isset($_GET['tgl_akhir']) ? mysqli_real_escape_string($conn, $_GET[
                     
                     <div class="col-md-5 col-12 text-md-end mt-3 mt-md-0 d-flex gap-2 justify-content-start justify-content-md-end align-items-center">
                         <button type="submit" class="btn btn-primary btn-sm px-3 shadow-2xs"><i class="fas fa-filter me-1"></i> Filter</button>
-                        
-                        <a href="index.php?page=pelanggaran_tambah" class="btn btn-danger btn-sm px-3 shadow-sm d-inline-flex align-items-center justify-content-center" style="padding-top: 0.25rem; padding-bottom: 0.25rem;">
+                        <a href="index.php?page=pelanggaran_tambah" class="btn btn-danger btn-sm px-3 shadow-sm d-inline-flex align-items-center justify-content-center">
                             <i class="fas fa-plus me-1"></i> Tambah
                         </a>
                     </div>
@@ -237,7 +235,7 @@ $tgl_akhir = isset($_GET['tgl_akhir']) ? mysqli_real_escape_string($conn, $_GET[
                                 <th width="10%">Kelas</th>
                                 <th>Bentuk Pelanggaran</th>
                                 <th width="8%" class="text-center">Poin</th>
-                                <th width="12%" class="text-center">Aksi</th>
+                                <th width="15%" class="text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -269,6 +267,7 @@ $tgl_akhir = isset($_GET['tgl_akhir']) ? mysqli_real_escape_string($conn, $_GET[
                                 $no_all = 1;
                                 while($row = mysqli_fetch_assoc($q_all)) {
                                     $tgl_formatted = date('d/m/Y', strtotime($row['tanggal']));
+                                    $id_kasus_fix = $row['id_kasus'];
                             ?>
                                     <tr>
                                         <td class="text-muted text-center"><?= $no_all++ ?></td>
@@ -278,16 +277,30 @@ $tgl_akhir = isset($_GET['tgl_akhir']) ? mysqli_real_escape_string($conn, $_GET[
                                         <td><span class="badge bg-light text-dark border px-2 py-1"><?= htmlspecialchars($row['nama_kelas'] ?? '-') ?></span></td>
                                         <td class="text-danger fw-normal"><?= htmlspecialchars($row['nama_pelanggaran']) ?></td>
                                         <td class="text-center"><span class="badge bg-danger rounded-pill px-2 py-1">+<?= $row['poin'] ?></span></td>
-                                        <td class="text-center">
-                                            <div class="d-flex gap-1 justify-content-center">
-                                                <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_kasus']; ?>" class="btn btn-info btn-sm text-white px-2 py-1 shadow-2xs" title="Detail">
-                                                    <i class="fas fa-eye fa-sm"></i>
+                                        
+                                        <td class="text-center align-middle text-nowrap">
+                                            <div class="d-inline-flex align-items-center justify-content-center gap-1">
+                                                <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_kasus'] ?>&source=semua" 
+                                                   class="btn btn-info btn-sm text-white px-2 py-1 d-inline-flex align-items-center gap-1 shadow-2xs" 
+                                                   title="Lihat Detail Kasus">
+                                                    <i class="fas fa-eye small"></i>
+                                                    <span>Detail</span>
                                                 </a>
-                                                <a href="index.php?page=pelanggaran_edit&id=<?= $row['id_kasus']; ?>" class="btn btn-warning btn-sm text-white px-2 py-1 shadow-2xs" title="Ubah">
-                                                    <i class="fas fa-edit fa-sm"></i>
+
+                                                <a href="index.php?page=pelanggaran_edit&id=<?= $id_kasus_fix ?>&source=semua" 
+                                                   class="btn btn-warning btn-sm text-dark fw-semibold px-2 py-1 d-inline-flex align-items-center gap-1 shadow-2xs" 
+                                                   title="Edit Catatan Pelanggaran">
+                                                    <i class="fas fa-edit small"></i>
+                                                    <span>Edit</span>
                                                 </a>
-                                                <a href="index.php?page=pelanggaran_hapus&id=<?= $row['id_kasus']; ?>" class="btn btn-danger btn-sm px-2 py-1 shadow-2xs" onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?')" title="Hapus">
-                                                    <i class="fas fa-trash fa-sm"></i>
+
+                                                <!-- TOMBOL HAPUS MENU SEMUA (DI SEBELAH KANAN EDIT) -->
+                                                <a href="pages/pelanggaran/pelanggaran_hapus.php?id_kasus=<?= $id_kasus_fix ?>&asal=menu_semua" 
+                                                   onclick="return confirm('Apakah Anda yakin ingin menghapus catatan pelanggaran ini?');" 
+                                                   class="btn btn-danger btn-sm px-2 py-1 d-inline-flex align-items-center gap-1 shadow-2xs"
+                                                   title="Hapus Catatan Pelanggaran">
+                                                    <i class="fas fa-trash small"></i>
+                                                    <span>Hapus</span>
                                                 </a>
                                             </div>
                                         </td>
@@ -310,91 +323,9 @@ $tgl_akhir = isset($_GET['tgl_akhir']) ? mysqli_real_escape_string($conn, $_GET[
 function switchMode(val) {
     window.location.href = 'index.php?page=pelanggaran&view=' + val;
 }
-
-document.addEventListener("DOMContentLoaded", function () {
-    const inputSiswa = document.getElementById('input_siswa_search');
-    const boxSiswa = document.getElementById('box_suggest_siswa');
-    const hiddenSiswa = document.getElementById('hidden_id_siswa');
-    if (inputSiswa) {
-        inputSiswa.addEventListener('input', function() {
-            let val = this.value;
-            if(val.length < 1) { boxSiswa.classList.add('d-none'); hiddenSiswa.value = ''; return; }
-
-            fetch(`index.php?page=pelanggaran&view=semua&action=search_siswa&keyword=${encodeURIComponent(val)}`)
-                .then(res => res.json())
-                .then(data => {
-                    boxSiswa.innerHTML = '';
-                    if(data.length > 0) {
-                        boxSiswa.classList.remove('d-none');
-                        data.forEach(item => {
-                            let div = document.createElement('div');
-                            div.className = 'p-2 border-bottom suggest-item style-suggest d-flex justify-content-between align-items-center';
-                            div.innerHTML = `<div><strong>${item.nama}</strong> <br><small class="text-muted">NIS: ${item.nis}</small></div> 
-                                             <span class="badge bg-secondary small">${item.nama_kelas ?? '-'}</span>`;
-                            div.onclick = function() {
-                                inputSiswa.value = `${item.nama} (${item.nama_kelas ?? '-'})`;
-                                hiddenSiswa.value = item.id;
-                                boxSiswa.classList.add('d-none');
-                            };
-                            boxSiswa.appendChild(div);
-                        });
-                    } else {
-                        boxSiswa.classList.remove('d-none');
-                        boxSiswa.innerHTML = '<div class="p-2 text-muted small text-center">Siswa tidak ditemukan</div>';
-                    }
-                }).catch(err => console.log("Error fetch siswa:", err));
-        });
-    }
-
-    const inputJenis = document.getElementById('input_jenis_search');
-    const boxJenis = document.getElementById('box_suggest_jenis');
-    const hiddenJenis = document.getElementById('hidden_id_jenis');
-
-    if (inputJenis) {
-        inputJenis.addEventListener('input', function() {
-            let val = this.value;
-            if(val.length < 1) { boxJenis.classList.add('d-none'); hiddenJenis.value = ''; return; }
-
-            fetch(`index.php?page=pelanggaran&view=semua&action=search_jenis&keyword=${encodeURIComponent(val)}`)
-                .then(res => res.json())
-                .then(data => {
-                    boxJenis.innerHTML = '';
-                    if(data.length > 0) {
-                        boxJenis.classList.remove('d-none');
-                        data.forEach(item => {
-                            let div = document.createElement('div');
-                            div.className = 'p-2 border-bottom suggest-item style-suggest d-flex justify-content-between align-items-center';
-                            div.innerHTML = `<span style="max-width:75%; display:inline-block; word-break:break-word;">${item.nama_pelanggaran}</span> 
-                                             <span class="badge bg-danger">+${item.poin} Poin</span>`;
-                            div.onclick = function() {
-                                inputJenis.value = item.nama_pelanggaran;
-                                hiddenJenis.value = item.id;
-                                boxJenis.classList.add('d-none');
-                            };
-                            boxJenis.appendChild(div);
-                        });
-                    } else {
-                        boxJenis.classList.remove('d-none');
-                        boxJenis.innerHTML = '<div class="p-2 text-muted small text-center">Jenis pelanggaran tidak ditemukan</div>';
-                    }
-                }).catch(err => console.log("Error fetch jenis:", err));
-        });
-    }
-
-    document.addEventListener('click', function(e) {
-        if(e.target !== inputSiswa && boxSiswa) boxSiswa.classList.add('d-none');
-        if(e.target !== inputJenis && boxJenis) boxJenis.classList.add('d-none');
-    });
-});
 </script>
 
 <style>
     .card-filter-header { background: #fdfdfd; border: 1px solid #e3e6f0 !important; }
-    .btn-xs { padding: .25rem .4rem; font-size: .75rem; border-radius: .2rem; }
-    .btn-group-xs > .btn { padding: .25rem .4rem; font-size: .75rem; }
     .shadow-2xs { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-    .autocomplete-suggestions { max-height: 230px; overflow-y: auto; left: 0; right: 0; border: 1px solid #d1d3e2 !important; border-top:none !important; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; }
-    .suggest-item { cursor: pointer; transition: background 0.2s; font-size: 0.88rem; color: #333; }
-    .suggest-item:hover { background-color: #f8f9fa; color: #000; }
-    .style-suggest { padding: 10px 15px !important; }
 </style>

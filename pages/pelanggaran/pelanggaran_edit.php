@@ -5,280 +5,171 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-$pesan = "";
+// 1. MENGAMBIL PARAMETER URL
+$id     = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$source = isset($_GET['source']) ? $_GET['source'] : 'semua';
 
-// 1. AMBIL ID DATA YANG AKAN DIEDIT
-if (!isset($_GET['id']) || empty($_GET['id'])) {
-    echo "<script>window.location.href = 'index.php?page=pelanggaran';</script>";
-    exit;
+// Menentukan URL Kembali
+$back_url = "index.php?page=pelanggaran&view=semua";
+if ($source === 'pengelompokan') {
+    $back_url = "index.php?page=pelanggaran&view=pengelompokan";
 }
 
-$id_pelanggaran = intval($_GET['id']);
+// 2. PROSES UPDATE DATA SAAT FORM DISUBMIT
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $id_pelanggaran = intval($_POST['id_pelanggaran']);
+    $id_jenis       = intval($_POST['id_jenis']);
+    $id_user        = intval($_POST['id_user']);
+    $tanggal        = mysqli_real_escape_string($conn, $_POST['tanggal']);
+    $keterangan     = mysqli_real_escape_string($conn, $_POST['keterangan']);
+    $redirect_to    = mysqli_real_escape_string($conn, $_POST['redirect_to']);
 
-// 2. PROSES KETIKA TOMBOL SIMPAN/UPDATE DIKLIK
-if (isset($_POST['update'])) {
-    $id_siswa   = intval($_POST['id_siswa']);
-    $id_jenis   = intval($_POST['id_jenis']);
-    $tanggal    = mysqli_real_escape_string($conn, $_POST['tanggal']);
-    $keterangan = mysqli_real_escape_string($conn, $_POST['keterangan']);
-    $id_user_pilihan = isset($_POST['id_user_petugas']) ? intval($_POST['id_user_petugas']) : 0;
-    
-    // Validasi input wajib
-    if (empty($id_siswa) || empty($id_jenis) || empty($tanggal) || empty($id_user_pilihan)) {
-        $pesan = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
-                    <strong>Gagal!</strong> Pastikan Anda mengetik lalu memilih Siswa dan Jenis Pelanggaran dari daftar kecil yang muncul agar data tersimpan valid.
-                    <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
-                  </div>";
-    } else {
-        $sql = "UPDATE pelanggaran SET 
-                id_siswa = '$id_siswa', 
-                id_jenis = '$id_jenis', 
-                tanggal = '$tanggal', 
-                keterangan = '$keterangan', 
-                id_user = '$id_user_pilihan' 
-                WHERE id = '$id_pelanggaran'";
-        
-        $query = mysqli_query($conn, $sql);
+    if ($id_pelanggaran > 0 && $id_jenis > 0) {
+        $sql_update = "UPDATE pelanggaran SET 
+                        id_jenis = '$id_jenis',
+                        id_user = '$id_user',
+                        tanggal = '$tanggal',
+                        keterangan = '$keterangan'
+                       WHERE id = '$id_pelanggaran'";
 
-        if ($query) {
+        if (mysqli_query($conn, $sql_update)) {
             echo "<script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    Swal.fire({
-                        title: 'Berhasil!',
-                        text: 'Catatan pelanggaran berhasil diperbarui.',
-                        icon: 'success',
-                        timer: 2000,
-                        showConfirmButton: false
-                    }).then(() => {
-                        window.location.href = 'index.php?page=pelanggaran';
-                    });
-                });
-            </script>";
+                    alert('Data pelanggaran berhasil diperbarui!');
+                    window.location.href = '$redirect_to';
+                  </script>";
+            exit;
         } else {
-            $pesan = "<div class='alert alert-danger alert-dismissible fade show' role='alert'>
-                        <strong>Gagal Memperbarui:</strong> " . mysqli_error($conn) . "
-                        <button type='button' class='btn-close' data-bs-dismiss='alert' aria-label='Close'></button>
-                      </div>";
+            $error_msg = "Gagal memperbarui data: " . mysqli_error($conn);
         }
+    } else {
+        $error_msg = "Mohon pilih jenis pelanggaran dengan benar!";
     }
 }
 
-// 3. AMBIL DATA LAMA UNTUK DIISI PADA FORM (PRE-FILLED)
-$query_lama = mysqli_query($conn, "
-    SELECT p.*, s.nama AS nama_siswa, s.nis, j.nama_pelanggaran, j.poin 
-    FROM pelanggaran p
-    JOIN siswa s ON p.id_siswa = s.id
-    JOIN jenis_pelanggaran j ON p.id_jenis = j.id
-    WHERE p.id = '$id_pelanggaran'
-");
-$data_lama = mysqli_fetch_assoc($query_lama);
+// 3. AMBIL DATA UNTUK FORM EDIT
+if ($source === 'pengelompokan') {
+    // Jika dari Pengelompokan (ID adalah ID Siswa), ambil kasus pelanggaran terbaru milik siswa tersebut
+    $sql_get = "SELECT p.id AS id_pelanggaran, p.tanggal, p.keterangan, p.id_jenis, p.id_user, 
+                       s.id AS id_siswa, s.nama AS nama_siswa, s.nis, k.nama_kelas
+                FROM pelanggaran p
+                JOIN siswa s ON p.id_siswa = s.id
+                LEFT JOIN kelas k ON s.id_kelas = k.id
+                WHERE p.id_siswa = '$id'
+                ORDER BY p.tanggal DESC, p.id DESC LIMIT 1";
+} else {
+    // Jika dari Menu Semua (ID adalah ID Kasus Pelanggaran spesifik)
+    $sql_get = "SELECT p.id AS id_pelanggaran, p.tanggal, p.keterangan, p.id_jenis, p.id_user, 
+                       s.id AS id_siswa, s.nama AS nama_siswa, s.nis, k.nama_kelas
+                FROM pelanggaran p
+                JOIN siswa s ON p.id_siswa = s.id
+                LEFT JOIN kelas k ON s.id_kelas = k.id
+                WHERE p.id = '$id'";
+}
 
-if (!$data_lama) {
-    echo "<script>window.location.href = 'index.php?page=pelanggaran';</script>";
+$q_get = mysqli_query($conn, $sql_get);
+$data_edit = mysqli_fetch_assoc($q_get);
+
+if (!$data_edit) {
+    echo "<div class='container-fluid py-3'><div class='alert alert-danger'>Data catatan pelanggaran tidak ditemukan. <a href='$back_url' class='alert-link'>Kembali</a></div></div>";
     exit;
 }
 
-// 4. DATA MASTER UNTUK AUTOCOMPLETE (SISWA & JENIS)
-$array_siswa = [];
-$query_siswa = mysqli_query($conn, "SELECT id, nis, nama FROM siswa ORDER BY nama ASC");
-if ($query_siswa) {
-    while ($r = mysqli_fetch_assoc($query_siswa)) {
-        $array_siswa[] = [
-            'id' => $r['id'], 
-            'label' => $r['nis'] . " - " . $r['nama'], 
-            'searchable' => strtolower($r['nis'] . " " . $r['nama'])
-        ];
-    }
-}
-
-$array_jenis = [];
-$query_jenis = mysqli_query($conn, "SELECT id, nama_pelanggaran, poin FROM jenis_pelanggaran ORDER BY nama_pelanggaran ASC");
-if ($query_jenis) {
-    while ($r = mysqli_fetch_assoc($query_jenis)) {
-        $array_jenis[] = [
-            'id' => $r['id'], 
-            'label' => $r['nama_pelanggaran'] . " (+" . $r['poin'] . " Poin)", 
-            'searchable' => strtolower($r['nama_pelanggaran'])
-        ];
-    }
-}
-
-$query_petugas = mysqli_query($conn, "SELECT id, nama_lengkap, role FROM users WHERE role IN ('guru', 'provoost') ORDER BY role ASC, nama_lengkap ASC");
+// 4. MASTER DATA DROPDOWN
+$q_jenis   = mysqli_query($conn, "SELECT id, nama_pelanggaran, poin FROM jenis_pelanggaran ORDER BY nama_pelanggaran ASC");
+$q_petugas = mysqli_query($conn, "SELECT id, nama_lengkap FROM users ORDER BY nama_lengkap ASC");
 ?>
 
-<style>
-    .autocomplete-wrapper {
-        position: relative;
-    }
-    /* Kotak Saran Kecil dan Ringkas Tepat di Bawah Kolom */
-    .suggestion-box {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        z-index: 1050;
-        width: 100%;
-        max-height: 200px;
-        overflow-y: auto;
-        background-color: #fff;
-        border: 1px solid #ced4da;
-        border-radius: 0.25rem;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        display: none;
-    }
-    .suggestion-item {
-        padding: 8px 12px;
-        cursor: pointer;
-        border-bottom: 1px solid #f8f9fa;
-        font-size: 0.85rem; /* Font diperkecil */
-        transition: all 0.2s ease;
-    }
-    .suggestion-item:last-child {
-        border-bottom: none;
-    }
-    .suggestion-item:hover {
-        background-color: #fff5f5;
-        color: #dc3545;
-        padding-left: 16px;
-    }
-</style>
-
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h3 class="mb-0 fw-bold text-dark">Form Ubah Catatan Pelanggaran</h3>
-        <p class="text-muted small mb-0">Ubah isi kolom secara manual, lalu pilih kembali dari daftar kecil yang muncul jika ingin mengganti data.</p>
+<div class="container-fluid py-3">
+    <div class="card shadow-sm border-0 rounded-3 mb-4 bg-white">
+        <div class="card-body p-3 d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="fw-bold mb-1 text-dark"><i class="fas fa-edit text-warning me-2"></i>Edit Catatan Pelanggaran</h5>
+                <small class="text-muted">
+                    Mode Pengeditan: <span class="badge bg-secondary"><?= strtoupper($source) ?></span>
+                </small>
+            </div>
+            <a href="<?= $back_url ?>" class="btn btn-light btn-sm border px-3">
+                <i class="fas fa-arrow-left me-1"></i> Batal / Kembali
+            </a>
+        </div>
     </div>
-    <a href="index.php?page=pelanggaran" class="btn btn-sm btn-secondary shadow-sm"><i class="fas fa-arrow-left me-1"></i> Kembali</a>
-</div>
 
-<?= $pesan; ?>
+    <?php if (isset($error_msg)): ?>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <?= $error_msg ?>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    <?php endif; ?>
 
-<div class="card border-0 shadow-sm rounded-3">
-    <div class="card-body p-4">
-        <form method="POST" action="" autocomplete="off">
-            
-            <div class="row">
-                <!-- 1. KOLOM NAMA / NISN SISWA (KECIL & MANUAL) -->
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-semibold text-secondary small">Nama atau NIS/NISN Siswa</label>
-                    <div class="autocomplete-wrapper">
-                        <input type="text" id="input_siswa" class="form-control form-control-sm" 
-                               value="<?= htmlspecialchars($data_lama['nis'] . ' - ' . $data_lama['nama_siswa']); ?>" 
-                               placeholder="Ketik nama / NISN Siswa dan klik" required>
-                        <input type="hidden" name="id_siswa" id="hidden_id_siswa" value="<?= $data_lama['id_siswa']; ?>">
-                        <div id="box_siswa" class="suggestion-box"></div>
+    <div class="card shadow-sm border-0 rounded-3 bg-white">
+        <div class="card-header bg-dark text-white fw-bold py-3">
+            <i class="fas fa-user-graduate me-2"></i>Informasi Pelanggaran Siswa
+        </div>
+        <div class="card-body p-4">
+            <form action="" method="POST">
+                <input type="hidden" name="id_pelanggaran" value="<?= $data_edit['id_pelanggaran'] ?>">
+                <input type="hidden" name="redirect_to" value="<?= $back_url ?>">
+
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label text-secondary small fw-bold">Nama Lengkap Siswa</label>
+                        <input type="text" class="form-control bg-light" value="<?= htmlspecialchars($data_edit['nama_siswa']) ?>" readonly>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label text-secondary small fw-bold">NIS / NISN</label>
+                        <input type="text" class="form-control bg-light" value="<?= htmlspecialchars($data_edit['nis']) ?>" readonly>
+                    </div>
+
+                    <div class="col-md-4">
+                        <label class="form-label text-secondary small fw-bold">Kelas</label>
+                        <input type="text" class="form-control bg-light" value="<?= htmlspecialchars($data_edit['nama_kelas'] ?? '-') ?>" readonly>
+                    </div>
+
+                    <hr class="my-3 text-muted">
+
+                    <div class="col-md-6">
+                        <label class="form-label text-secondary small fw-bold">Tanggal Pelanggaran <span class="text-danger">*</span></label>
+                        <input type="date" name="tanggal" class="form-control" value="<?= $data_edit['tanggal'] ?>" required>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label text-secondary small fw-bold">Petugas Pencatat <span class="text-danger">*</span></label>
+                        <select name="id_user" class="form-select" required>
+                            <option value="">-- Pilih Petugas --</option>
+                            <?php while ($petugas = mysqli_fetch_assoc($q_petugas)): ?>
+                                <option value="<?= $petugas['id'] ?>" <?= $petugas['id'] == $data_edit['id_user'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($petugas['nama_lengkap']) ?>
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label text-secondary small fw-bold">Jenis Pelanggaran & Poin <span class="text-danger">*</span></label>
+                        <select name="id_jenis" class="form-select" required>
+                            <option value="">-- Pilih Jenis Pelanggaran --</option>
+                            <?php while ($jenis = mysqli_fetch_assoc($q_jenis)): ?>
+                                <option value="<?= $jenis['id'] ?>" <?= $jenis['id'] == $data_edit['id_jenis'] ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($jenis['nama_pelanggaran']) ?> (+<?= $jenis['poin'] ?> Poin)
+                                </option>
+                            <?php endwhile; ?>
+                        </select>
+                    </div>
+
+                    <div class="col-md-12">
+                        <label class="form-label text-secondary small fw-bold">Bentuk & Keterangan Pelanggaran</label>
+                        <textarea name="keterangan" class="form-control" rows="3" placeholder="Tuliskan detail kejadian atau catatan tambahan jika ada..."><?= htmlspecialchars($data_edit['keterangan']) ?></textarea>
+                    </div>
+
+                    <div class="col-md-12 text-end mt-4">
+                        <a href="<?= $back_url ?>" class="btn btn-secondary px-4 me-2">Batal</a>
+                        <button type="submit" class="btn btn-warning text-dark fw-bold px-4">
+                            <i class="fas fa-save me-1"></i> Simpan Perubahan
+                        </button>
                     </div>
                 </div>
-                
-                <!-- 2. KOLOM JENIS PELANGGARAN (KECIL & MANUAL) -->
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-semibold text-secondary small">Bentuk / Jenis Pelanggaran</label>
-                    <div class="autocomplete-wrapper">
-                        <input type="text" id="input_jenis" class="form-control form-control-sm" 
-                               value="<?= htmlspecialchars($data_lama['nama_pelanggaran'] . ' (+' . $data_lama['poin'] . ' Poin)'); ?>" 
-                               placeholder="Ketik Jenis Pelanggaran dan klik" required>
-                        <input type="hidden" name="id_jenis" id="hidden_id_jenis" value="<?= $data_lama['id_jenis']; ?>">
-                        <div id="box_jenis" class="suggestion-box"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row">
-                <!-- 3. PETUGAS PENCATAT -->
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-semibold text-secondary small">Petugas Pencatat</label>
-                    <select name="id_user_petugas" class="form-select form-select-sm" required>
-                        <option value="">-- Pilih Guru / Provoost --</option>
-                        <?php 
-                        if ($query_petugas && mysqli_num_rows($query_petugas) > 0) {
-                            while ($row_petugas = mysqli_fetch_assoc($query_petugas)) {
-                                $role_display = ucfirst($row_petugas['role']); 
-                                $selected = ($row_petugas['id'] == $data_lama['id_user']) ? "selected" : "";
-                                echo "<option value='".$row_petugas['id']."' $selected>".htmlspecialchars($row_petugas['nama_lengkap'])." [".$role_display."]</option>";
-                            }
-                        }
-                        ?>
-                    </select>
-                </div>
-                
-                <!-- 4. TANGGAL KEJADIAN -->
-                <div class="col-md-6 mb-3">
-                    <label class="form-label fw-semibold text-secondary small">Tanggal Kejadian</label>
-                    <input type="date" name="tanggal" class="form-control form-control-sm" value="<?= $data_lama['tanggal']; ?>" required>
-                </div>
-            </div>
-            
-            <!-- 5. KETERANGAN KRONOLOGI -->
-            <div class="mb-4">
-                <label class="form-label fw-semibold text-secondary small">Keterangan / Kronologi Singkat</label>
-                <textarea name="keterangan" class="form-control form-control-sm" rows="4" placeholder="Tulis catatan tambahan..."><?= htmlspecialchars($data_lama['keterangan']); ?></textarea>
-            </div>
-            
-            <div class="d-flex justify-content-end gap-2 border-top pt-3">
-                <button type="button" onclick="window.location.reload();" class="btn btn-sm btn-outline-secondary px-4">Reset Form</button>
-                <button type="submit" name="update" class="btn btn-sm btn-danger px-4 shadow-sm"><i class="fas fa-save me-2"></i>Simpan Perubahan</button>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
 </div>
-
-<!-- JAVASCRIPT LIVE FILTER KETIK MANUAL -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const dataSiswa = <?php echo json_encode($array_siswa); ?>;
-    const dataJenis = <?php echo json_encode($array_jenis); ?>;
-
-    function setupLiveSearch(inputId, boxId, hiddenId, sourceData) {
-        const inputEl = document.getElementById(inputId);
-        const boxEl = document.getElementById(boxId);
-        const hiddenEl = document.getElementById(hiddenId);
-
-        inputEl.addEventListener('input', function() {
-            const keyword = this.value.toLowerCase().trim();
-            boxEl.innerHTML = '';
-            
-            if (keyword === '') {
-                boxEl.style.display = 'none';
-                hiddenEl.value = '';
-                return;
-            }
-
-            const filtered = sourceData.filter(item => item.searchable.includes(keyword));
-
-            if (filtered.length > 0) {
-                filtered.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = 'suggestion-item';
-                    div.textContent = item.label;
-                    
-                    div.addEventListener('click', function() {
-                        inputEl.value = item.label;
-                        hiddenEl.value = item.id;
-                        boxEl.style.display = 'none';
-                    });
-                    
-                    boxEl.appendChild(div);
-                });
-                boxEl.style.display = 'block';
-            } else {
-                const noResult = document.createElement('div');
-                noResult.className = 'suggestion-item text-muted text-center small';
-                noResult.textContent = 'Data tidak ditemukan';
-                boxEl.appendChild(noResult);
-                boxEl.style.display = 'block';
-                hiddenEl.value = ''; 
-            }
-        });
-
-        // Menutup box pencarian jika klik di luar komponen
-        document.addEventListener('click', function(e) {
-            if (e.target !== inputEl && e.target !== boxEl) {
-                boxEl.style.display = 'none';
-            }
-        });
-    }
-
-    // Jalankan sistem untuk halaman edit
-    setupLiveSearch('input_siswa', 'box_siswa', 'hidden_id_siswa', dataSiswa);
-    setupLiveSearch('input_jenis', 'box_jenis', 'hidden_id_jenis', dataJenis);
-});
-</script>
