@@ -30,10 +30,27 @@ if (!$koneksi instanceof mysqli) {
 }
 
 // ========================================================
-// 3. PROSES AJAX LIVE SEARCH AUTOCOMPLETE (DITEMPATKAN DI PALING ATAS)
+// TANGKAP MENU ASAL SECARA FLEKSIBEL (Pengelompokan / Semua)
+// ========================================================
+if (isset($_GET['from']) && !empty($_GET['from'])) {
+    $from_view = trim($_GET['from']);
+} elseif (isset($_GET['view']) && !empty($_GET['view'])) {
+    $from_view = trim($_GET['view']);
+} elseif (isset($_GET['from_view']) && !empty($_GET['from_view'])) {
+    $from_view = trim($_GET['from_view']);
+} elseif (isset($_SESSION['last_view_pelanggaran'])) {
+    $from_view = $_SESSION['last_view_pelanggaran'];
+} else {
+    $from_view = 'pengelompokan'; // Default menu awal
+}
+
+// Simpan ke session untuk menjaga konteks navigasi
+$_SESSION['last_view_pelanggaran'] = $from_view;
+
+// ========================================================
+// 3. PROSES AJAX LIVE SEARCH AUTOCOMPLETE
 // ========================================================
 if (isset($_GET['action']) && $_GET['action'] == 'search_siswa') {
-    // Bersihkan buffer output untuk memastikan tidak ada HTML liar yang bocor ke JSON
     if (ob_get_length()) ob_clean(); 
     
     $keyword = isset($_GET['keyword']) ? trim($_GET['keyword']) : '';
@@ -47,7 +64,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'search_siswa') {
                   LIMIT 15";
                   
         $stmt = $koneksi->prepare($query);
-        $search_param = "%" . $keyword . "%"; // Mencari kecocokan huruf di depan, tengah, atau belakang nama
+        $search_param = "%" . $keyword . "%";
         $stmt->bind_param("ss", $search_param, $search_param);
         $stmt->execute();
         $q_result = $stmt->get_result();
@@ -60,22 +77,20 @@ if (isset($_GET['action']) && $_GET['action'] == 'search_siswa') {
     
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($result);
-    exit; // Menghentikan rendering HTML agar response murni JSON
+    exit;
 }
 
 if (isset($_GET['action']) && $_GET['action'] == 'search_jenis') {
-    // Bersihkan buffer output
     if (ob_get_length()) ob_clean();
 
     $keyword = isset($_GET['keyword']) ? trim($_GET['keyword']) : '';
     $result = [];
 
     if ($keyword !== '') {
-        // Menggunakan pencarian kata yang fleksibel pada nama pelanggaran
         $query = "SELECT id, nama_pelanggaran, poin FROM jenis_pelanggaran WHERE nama_pelanggaran LIKE ? LIMIT 15";
         
         $stmt = $koneksi->prepare($query);
-        $search_param = "%" . $keyword . "%"; // Mencari kata di posisi manapun yang berkaitan
+        $search_param = "%" . $keyword . "%";
         $stmt->bind_param("s", $search_param);
         $stmt->execute();
         $q_result = $stmt->get_result();
@@ -88,11 +103,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'search_jenis') {
     
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($result);
-    exit; // Menghentikan rendering HTML agar response murni JSON
+    exit;
 }
-
-// Tangkap mode asal halaman untuk redirect nantinya
-$from_view = isset($_GET['from']) ? htmlspecialchars($_GET['from']) : 'semua';
 
 // ========================================================
 // 4. PROSES SIMPAN DATA (POST FORM)
@@ -113,7 +125,7 @@ if (isset($_POST['simpan_pelanggaran'])) {
         if ($stmt_ins->execute()) {
             echo "<script>
                     alert('Berhasil! Catatan pelanggaran baru berhasil disimpan.');
-                    window.location.href = 'index.php?page=pelanggaran&view=" . $redirect_view . "';
+                    window.location.href = 'index.php?page=pelanggaran&view=" . urlencode($redirect_view) . "';
                   </script>";
             exit;
         } else {
@@ -144,14 +156,16 @@ $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER 
     <div class="card shadow-sm border-0 rounded-3 bg-white">
         <div class="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold"><i class="fas fa-plus-circle text-warning me-2"></i>Tambah Catatan Pelanggaran Siswa</h5>
-            <a href="index.php?page=pelanggaran&view=<?= $from_view ?>" class="btn btn-secondary btn-sm shadow-2xs">
-                <i class="fas fa-arrow-left me-1"></i> Batal
+            
+            <!-- TOMBOL BATAL / KEMBALI HEADER -->
+            <a href="index.php?page=pelanggaran&view=<?= urlencode($from_view) ?>" class="btn btn-secondary btn-sm shadow-2xs">
+                <i class="fas fa-arrow-left me-1"></i> Kembali ke Menu <?= $from_view == 'pengelompokan' ? 'Pengelompokan' : 'Semua Pelanggaran' ?>
             </a>
         </div>
         
         <div class="card-body p-4">
             <form method="POST" action="" autocomplete="off">
-                <input type="hidden" name="redirect_view" value="<?= $from_view ?>">
+                <input type="hidden" name="redirect_view" value="<?= htmlspecialchars($from_view) ?>">
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
@@ -204,8 +218,14 @@ $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER 
 
                 <hr class="text-muted">
                 
-                <div class="text-end">
-                    <button type="reset" class="btn btn-light px-4 me-2 border" id="btn_reset_form">Reset Form</button>
+                <div class="d-flex justify-content-end align-items-center gap-2">
+                    <!-- TOMBOL BATAL FOOTER -->
+                    <a href="index.php?page=pelanggaran&view=<?= urlencode($from_view) ?>" class="btn btn-secondary px-4">
+                        <i class="fas fa-times me-1"></i> Batal
+                    </a>
+                    
+                    <button type="reset" class="btn btn-light px-3 border" id="btn_reset_form">Reset Form</button>
+                    
                     <button type="submit" name="simpan_pelanggaran" class="btn btn-primary px-4 shadow-sm">
                         <i class="fas fa-save me-1"></i> Simpan Catatan
                     </button>
@@ -216,11 +236,10 @@ $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER 
 </div>
 
 <!-- ========================================================
-// 6. SCRIPT JAVASCRIPT AJAX LIVE SEARCH (PERBAIKAN TINGKAT STABILITAS)
+// 6. SCRIPT JAVASCRIPT AJAX LIVE SEARCH
 // ======================================================== -->
 <script>
 document.addEventListener("DOMContentLoaded", function () {
-    // Ambil parameter halaman aktif saat ini secara dinamis dari URL browser
     const currentUrlParams = new URLSearchParams(window.location.search);
     const currentPage = currentUrlParams.get('page') || 'pelanggaran_tambah';
 
@@ -238,7 +257,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 return; 
             }
 
-            // Mengirim parameter URL action yang akan dipotong oleh perintah exit PHP di bagian atas
             fetch(`index.php?page=${currentPage}&action=search_siswa&keyword=${encodeURIComponent(val)}`)
                 .then(res => {
                     if (!res.ok) throw new Error('Response jaringan bermasalah');
@@ -313,13 +331,11 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Menutup kotak saran otomatis jika pengguna mengklik di luar area input pencarian
     document.addEventListener('click', function(e) {
         if(e.target !== inputSiswa && boxSiswa) boxSiswa.classList.add('d-none');
         if(e.target !== inputJenis && boxJenis) boxJenis.classList.add('d-none');
     });
 
-    // Reset hidden input jika tombol reset form ditekan
     const btnReset = document.getElementById('btn_reset_form');
     if(btnReset){
         btnReset.addEventListener('click', function(){
