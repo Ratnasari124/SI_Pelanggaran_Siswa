@@ -9,14 +9,14 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // =========================================================================
-// 1. MEKANISME SESSION KUNCI VIEW (Memastikan navigasi selalu konsisten)
+// 1. MEKANISME SESSION KUNCI VIEW
 // =========================================================================
 if (isset($_GET['view']) && in_array($_GET['view'], ['pengelompokan', 'semua'])) {
     $_SESSION['last_view_pelanggaran'] = $_GET['view'];
 }
 
-// Hanya ambil dari session jika parameter view diset atau sudah pernah diset sebelumnya
-$view = $_GET['view'] ?? ($_SESSION['last_view_pelanggaran'] ?? '');
+// Hanya ambil view dari parameter URL (jika kosong, tampilkan halaman awal bersih)
+$view = $_GET['view'] ?? '';
 
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
 $id_kelas_filter = isset($_GET['kelas']) ? mysqli_real_escape_string($conn, $_GET['kelas']) : '';
@@ -188,7 +188,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
 // ==========================================
 ?>
 
-<div class="container-fluid py-3">
+<div class="container-fluid px-4 py-4">
 
     <!-- HEADER: BANNER DROPDOWN PILIHAN MODE -->
     <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
@@ -200,6 +200,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                 <p class="text-muted small mb-0">Pilih mode pengelompokan data untuk memulai pengelolaan.</p>
             </div>
             
+            <!-- DROPDOWN MODE TAMPILAN -->
             <div class="d-flex align-items-center gap-2">
                 <label class="form-label small mb-0 fw-semibold text-secondary">Mode Tampilan :</label>
                 <select class="form-select form-select-sm fw-bold border-primary text-primary" style="width: auto;" onchange="location = this.value;">
@@ -213,16 +214,18 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
 
     <!-- AREA KONTEN UTAMA -->
     <?php if (empty($view)): ?>
-        <!-- TAMPILAN KOSONG / AWAL SEBELUM MEMILIH MODE -->
-        <div class="card border-0 shadow-sm rounded-3 bg-white p-5 text-center">
-            <div class="py-4">
-                <i class="fas fa-filter text-secondary mb-3" style="font-size: 3rem; opacity: 0.5;"></i>
+        <!-- TAMPILAN KOSONG / AWAL SAAT KLIK MENU CATAT PELANGGARAN -->
+        <div class="card border-0 shadow-sm rounded-3 bg-white p-5 text-center my-2">
+            <div class="py-5">
+                <i class="fas fa-filter text-secondary mb-3" style="font-size: 3.5rem; opacity: 0.3;"></i>
                 <h5 class="fw-bold text-dark">Silakan Pilih Mode Tampilan</h5>
-                <p class="text-muted small mb-0">Pilih mode <strong>Pengelompokan Siswa</strong> atau <strong>Semua Pelanggaran</strong> pada dropdown di atas untuk menampilkan data.</p>
+                <p class="text-muted small mb-0 mx-auto" style="max-width: 450px;">
+                    Pilih mode <strong>Pengelompokan Siswa</strong> atau <strong>Semua Pelanggaran</strong> pada dropdown di atas untuk menampilkan data rekapitulasi.
+                </p>
             </div>
         </div>
     <?php else: ?>
-        <!-- TAMPILAN DATA SETELAH MODE DIPILIH -->
+        <!-- TAMPILAN DATA SETELAH MODE DIPILIH (PENGELOMPOKAN / SEMUA) -->
         <div class="card border-0 shadow-sm rounded-3 bg-white p-3">
 
             <!-- SEARCH BAR & TOMBOL TAMBAH -->
@@ -257,13 +260,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                 </div>
             </div>
 
-           <!-- TABEL MODE PENGELOMPOKAN SISWA -->
+            <!-- TABEL MODE PENGELOMPOKAN SISWA -->
             <?php if ($view == 'pengelompokan'): ?>
                 <?php
-                // Helper Function untuk format nomor telepon ke format internasional (62xxx)
                 if (!function_exists('formatNoWA')) {
                     function formatNoWA($nomor) {
-                        $nomor = preg_replace('/[^0-9]/', '', $nomor); // Hapus karakter selain angka
+                        $nomor = preg_replace('/[^0-9]/', '', $nomor);
                         if (substr($nomor, 0, 1) === '0') {
                             $nomor = '62' . substr($nomor, 1);
                         }
@@ -271,8 +273,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                     }
                 }
 
-                // BASE URL / DOMAIN WEB SEKOLAH ANDA (Sesuaikan dengan domain/ip server aplikasi Anda)
-                // Contoh untuk localhost: http://localhost/nama_projek/
                 $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
                 $base_url = $protocol . $_SERVER['HTTP_HOST'] . str_replace(basename($_SERVER['SCRIPT_NAME']), "", $_SERVER['SCRIPT_NAME']);
 
@@ -281,7 +281,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                     $where_kelompok .= " AND (s.nama LIKE '%$search%' OR s.nis LIKE '%$search%')";
                 }
 
-                // QUERY DATA SISWA & REKAPITULASI
                 $q_kelompok = mysqli_query($conn, "SELECT 
                                                         s.id AS id_siswa, 
                                                         s.nis, 
@@ -315,14 +314,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                         <tbody>
                             <?php if ($q_kelompok && mysqli_num_rows($q_kelompok) > 0): $no = 1; while($row = mysqli_fetch_assoc($q_kelompok)): ?>
                                 <?php 
-                                    // Memproses Nomor WA Orang Tua dari kolom 'no_hp'
                                     $no_wa = formatNoWA($row['no_hp'] ?? '');
                                     $has_wa = !empty($no_wa);
                                     
-                                    // Link Halaman Cetak/Generate PDF Rekapan Siswa
                                     $url_pdf_siswa = $base_url . "cetak_pelanggaran.php?id=" . $row['id_siswa'];
 
-                                    // Format Pesan WA Mengirimkan Link PDF
                                     $pesan = "Yth. Bapak/Ibu Orang Tua/Wali dari *{$row['nama_siswa']}*,\n\n";
                                     $pesan .= "Berikut kami sampaikan *Surat Rekapan Catatan Pelanggaran Siswa* resmi dari pihak sekolah.\n\n";
                                     $pesan .= "Silakan klik link di bawah ini untuk mengunduh / melihat dokumen resmi (PDF):\n";
@@ -331,7 +327,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                     $pesan .= "Terima Kasih,\n";
                                     $pesan .= "*Tim Bimbingan Konseling (BK)*";
 
-                                    // URL Direct WA
                                     $url_wa = "https://api.whatsapp.com/send?phone=" . $no_wa . "&text=" . urlencode($pesan);
                                 ?>
                                 <tr>
@@ -353,8 +348,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                     </td>
                                     <td class="text-center">
                                         <div class="d-inline-flex gap-1 flex-wrap justify-content-center">
-                                            <!-- TOMBOL DETAIL -->
-                                            <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_siswa'] ?>&from_view=pengelompokan" class="btn btn-info btn-sm text-white px-2 py-1" style="font-size: 0.75rem; background-color: #0dcaf0; border: none;" title="Lihat Detail">
+                                            <!-- TOMBOL DETAIL SAJA -->
+                                            <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_siswa'] ?>&from_view=pengelompokan" class="btn btn-info btn-sm text-white px-2 py-1" style="font-size: 0.75rem; background-color: #0dcaf0; border: none;" title="Lihat Detail Rekap">
                                                 <i class="fas fa-eye me-1"></i> Detail
                                             </a>
 
@@ -364,14 +359,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                                     <i class="fas fa-print me-1"></i> Cetak / WA
                                                 </button>
                                                 <ul class="dropdown-menu dropdown-menu-end shadow" style="font-size: 0.85rem;">
-                                                    <!-- Opsi 1: Buka PDF Langsung -->
                                                     <li>
                                                         <a class="dropdown-item" href="cetak_pelanggaran.php?id=<?= $row['id_siswa'] ?>" target="_blank">
                                                             <i class="fas fa-file-pdf text-danger me-2"></i> Cetak PDF Rekap
                                                         </a>
                                                     </li>
                                                     <li><hr class="dropdown-divider"></li>
-                                                    <!-- Opsi 2: Kirim Link PDF via WhatsApp -->
                                                     <li>
                                                         <?php if ($has_wa): ?>
                                                             <a class="dropdown-item text-success" href="<?= $url_wa ?>" target="_blank">
@@ -385,11 +378,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                                     </li>
                                                 </ul>
                                             </div>
-
-                                            <!-- TOMBOL EDIT -->
-                                            <a href="index.php?page=pelanggaran_edit&id=<?= $row['id_kasus_terakhir'] ?>&from_view=pengelompokan" class="btn btn-warning btn-sm text-dark fw-semibold px-2 py-1" style="font-size: 0.75rem; background-color: #ffc107; border: none;" title="Edit Kasus Terakhir">
-                                                <i class="fas fa-edit me-1"></i> Edit
-                                            </a>
                                         </div>
                                     </td>
                                 </tr>
@@ -409,7 +397,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                 }
 
                 $q_semua = mysqli_query($conn, "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, s.nis, s.nama AS nama_siswa, 
-                                                    k.nama_kelas, j.nama_pelanggaran, j.poin, u.nama_lengkap AS petugas
+                                                       k.nama_kelas, j.nama_pelanggaran, j.poin, u.nama_lengkap AS petugas
                                                 FROM pelanggaran p
                                                 JOIN siswa s ON p.id_siswa = s.id
                                                 JOIN jenis_pelanggaran j ON p.id_jenis = j.id
@@ -431,7 +419,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                 <th>Keterangan</th>
                                 <th width="8%" class="text-center">Poin</th>
                                 <th>Petugas</th>
-                                <th width="12%" class="text-center">Aksi</th>
+                                <th width="10%" class="text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -446,15 +434,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                     <td><small class="text-muted"><?= htmlspecialchars($row['keterangan'] ?: '-') ?></small></td>
                                     <td class="text-center"><span class="badge bg-danger rounded-pill px-2 py-1">+<?= $row['poin'] ?></span></td>
                                     <td><small class="text-secondary"><?= htmlspecialchars($row['petugas'] ?? '-') ?></small></td>
+                                    <!-- TOMBOL DETAIL SAJA -->
                                     <td class="text-center">
-                                        <div class="d-inline-flex gap-1">
-                                            <a href="index.php?page=pelanggaran_edit&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-warning btn-xs text-dark fw-semibold me-1">
-                                                <i class="fas fa-edit"></i> Edit
-                                            </a>
-                                            <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-info btn-xs text-white">
-                                                <i class="fas fa-eye"></i> Detail
-                                            </a>
-                                        </div>
+                                        <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-info btn-sm text-white px-3" title="Lihat Detail Kejadian">
+                                            <i class="fas fa-eye me-1"></i> Detail
+                                        </a>
                                     </td>
                                 </tr>
                             <?php endwhile; else: ?>
