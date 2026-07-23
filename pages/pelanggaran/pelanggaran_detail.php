@@ -187,7 +187,7 @@ if ($from_view == 'pengelompokan'):
             <!-- Row Atas: Card Total Kasus & Akumulasi Poin -->
             <div class="row g-2">
                 <div class="col-6">
-                    <div class="card shadow-sm border-0 text-white h-100" style="background-color: #0d6efd;">
+                    <div class="card shadow-sm border-0 text-white h-100" style="background-color: #1f0777;">
                         <div class="card-body py-3">
                             <small class="text-uppercase fw-semibold" style="letter-spacing: 0.5px;">TOTAL KASUS</small>
                             <div class="fs-3 fw-bold mt-1"><?= $siswa['total_kasus'] ?> <span class="fs-6 fw-normal">Kejadian</span></div>
@@ -195,7 +195,7 @@ if ($from_view == 'pengelompokan'):
                     </div>
                 </div>
                 <div class="col-6">
-                    <div class="card shadow-sm border-0 text-white h-100" style="background-color: #dc3545;">
+                    <div class="card shadow-sm border-0 text-white h-100" style="background-color: #7c020e;">
                         <div class="card-body py-3">
                             <small class="text-uppercase fw-semibold" style="letter-spacing: 0.5px;">AKUMULASI POIN</small>
                             <div class="fs-3 fw-bold mt-1">+<?= $siswa['total_poin'] ?> <span class="fs-6 fw-normal">Poin</span></div>
@@ -205,7 +205,7 @@ if ($from_view == 'pengelompokan'):
             </div>
 
             <!-- Row Bawah: KOTAK SANKSI -->
-            <div class="card shadow-sm border-0 text-white" style="background-color: #ffc107; color: #212529 !important;">
+            <div class="card shadow-sm border-0 text-white" style="background-color: #ffc107ab; color: #212529 !important;">
                 <div class="card-body py-2 px-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
@@ -227,7 +227,7 @@ if ($from_view == 'pengelompokan'):
 
     <!-- ROW BARIS BAWAH: TABEL RECORD PELANGGARAN -->
     <div class="card shadow-sm border-0">
-        <div class="card-header text-white fw-bold py-2" style="background-color: #dc3545;">
+        <div class="card-header text-white fw-bold py-2" style="background-color: #970816;">
             <i class="fas fa-history me-1"></i> Data Record Pelanggaran Terbuku
         </div>
         <div class="card-body p-0">
