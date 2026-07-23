@@ -257,40 +257,83 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                 </div>
             </div>
 
-            <!-- TABEL MODE PENGELOMPOKAN SISWA -->
+           <!-- TABEL MODE PENGELOMPOKAN SISWA -->
             <?php if ($view == 'pengelompokan'): ?>
                 <?php
+                // Helper Function untuk format nomor telepon ke format internasional (62xxx)
+                if (!function_exists('formatNoWA')) {
+                    function formatNoWA($nomor) {
+                        $nomor = preg_replace('/[^0-9]/', '', $nomor); // Hapus karakter selain angka
+                        if (substr($nomor, 0, 1) === '0') {
+                            $nomor = '62' . substr($nomor, 1);
+                        }
+                        return $nomor;
+                    }
+                }
+
+                // BASE URL / DOMAIN WEB SEKOLAH ANDA (Sesuaikan dengan domain/ip server aplikasi Anda)
+                // Contoh untuk localhost: http://localhost/nama_projek/
+                $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || $_SERVER['SERVER_PORT'] == 443) ? "https://" : "http://";
+                $base_url = $protocol . $_SERVER['HTTP_HOST'] . str_replace(basename($_SERVER['SCRIPT_NAME']), "", $_SERVER['SCRIPT_NAME']);
+
                 $where_kelompok = "WHERE 1=1";
                 if (!empty($search)) {
                     $where_kelompok .= " AND (s.nama LIKE '%$search%' OR s.nis LIKE '%$search%')";
                 }
 
-                $q_kelompok = mysqli_query($conn, "SELECT s.id AS id_siswa, s.nis, s.nama AS nama_siswa, k.nama_kelas, 
-                                                                 COUNT(p.id) AS total_kasus, IFNULL(SUM(j.poin), 0) AS total_poin,
-                                                                 MAX(p.id) AS id_kasus_terakhir
-                                                  FROM siswa s
-                                                  JOIN pelanggaran p ON p.id_siswa = s.id
-                                                  JOIN jenis_pelanggaran j ON p.id_jenis = j.id
-                                                  LEFT JOIN kelas k ON s.id_kelas = k.id
-                                                  $where_kelompok
-                                                  GROUP BY s.id
-                                                  ORDER BY total_poin DESC");
+                // QUERY DATA SISWA & REKAPITULASI
+                $q_kelompok = mysqli_query($conn, "SELECT 
+                                                        s.id AS id_siswa, 
+                                                        s.nis, 
+                                                        s.nama AS nama_siswa, 
+                                                        s.no_hp,
+                                                        k.nama_kelas, 
+                                                        COUNT(p.id) AS total_kasus, 
+                                                        IFNULL(SUM(j.poin), 0) AS total_poin,
+                                                        MAX(p.id) AS id_kasus_terakhir
+                                                FROM siswa s
+                                                JOIN pelanggaran p ON p.id_siswa = s.id
+                                                JOIN jenis_pelanggaran j ON p.id_jenis = j.id
+                                                LEFT JOIN kelas k ON s.id_kelas = k.id
+                                                $where_kelompok
+                                                GROUP BY s.id
+                                                ORDER BY total_poin DESC");
                 ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
                         <thead class="table-dark" style="background-color: #212529;">
                             <tr>
-                                <th width="5%" class="text-center">No</th>
-                                <th width="20%">NIS / NISN</th>
-                                <th width="25%">Nama Siswa</th>
-                                <th width="12%">Kelas</th>
-                                <th width="13%" class="text-center">Total Kasus</th>
-                                <th width="13%" class="text-center">Akumulasi Poin</th>
-                                <th width="12%" class="text-center">Aksi</th>
+                                <th width="4%" class="text-center">No</th>
+                                <th width="15%">NIS / NISN</th>
+                                <th width="20%">Nama Siswa</th>
+                                <th width="10%">Kelas</th>
+                                <th width="12%" class="text-center">Total Kasus</th>
+                                <th width="12%" class="text-center">Akumulasi Poin</th>
+                                <th width="27%" class="text-center">Aksi & Cetak</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if ($q_kelompok && mysqli_num_rows($q_kelompok) > 0): $no = 1; while($row = mysqli_fetch_assoc($q_kelompok)): ?>
+                                <?php 
+                                    // Memproses Nomor WA Orang Tua dari kolom 'no_hp'
+                                    $no_wa = formatNoWA($row['no_hp'] ?? '');
+                                    $has_wa = !empty($no_wa);
+                                    
+                                    // Link Halaman Cetak/Generate PDF Rekapan Siswa
+                                    $url_pdf_siswa = $base_url . "cetak_pelanggaran.php?id=" . $row['id_siswa'];
+
+                                    // Format Pesan WA Mengirimkan Link PDF
+                                    $pesan = "Yth. Bapak/Ibu Orang Tua/Wali dari *{$row['nama_siswa']}*,\n\n";
+                                    $pesan .= "Berikut kami sampaikan *Surat Rekapan Catatan Pelanggaran Siswa* resmi dari pihak sekolah.\n\n";
+                                    $pesan .= "Silakan klik link di bawah ini untuk mengunduh / melihat dokumen resmi (PDF):\n";
+                                    $pesan .= "📄 *Link PDF:* " . $url_pdf_siswa . "\n\n";
+                                    $pesan .= "Mohon bantuan Bapak/Ibu untuk mendampingi dan memberikan pembinaan kepada putra/putrinya.\n\n";
+                                    $pesan .= "Terima Kasih,\n";
+                                    $pesan .= "*Tim Bimbingan Konseling (BK)*";
+
+                                    // URL Direct WA
+                                    $url_wa = "https://api.whatsapp.com/send?phone=" . $no_wa . "&text=" . urlencode($pesan);
+                                ?>
                                 <tr>
                                     <td class="text-center"><?= $no++ ?></td>
                                     <td class="text-secondary"><?= htmlspecialchars($row['nis']) ?></td>
@@ -309,13 +352,42 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                         </span>
                                     </td>
                                     <td class="text-center">
-                                        <div class="d-inline-flex gap-1">
-                                            <!-- TOMBOL DETAIL REKAP -->
-                                            <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_siswa'] ?>&from_view=pengelompokan" class="btn btn-info btn-sm text-white px-2 py-1" style="font-size: 0.75rem; background-color: #0dcaf0; border: none;">
-                                                <i class="fas fa-eye me-1"></i> Detail Rekap
+                                        <div class="d-inline-flex gap-1 flex-wrap justify-content-center">
+                                            <!-- TOMBOL DETAIL -->
+                                            <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_siswa'] ?>&from_view=pengelompokan" class="btn btn-info btn-sm text-white px-2 py-1" style="font-size: 0.75rem; background-color: #0dcaf0; border: none;" title="Lihat Detail">
+                                                <i class="fas fa-eye me-1"></i> Detail
                                             </a>
+
+                                            <!-- DROPDOWN BUTTON CETAK / SEND WA -->
+                                            <div class="btn-group">
+                                                <button type="button" class="btn btn-secondary btn-sm dropdown-toggle px-2 py-1" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.75rem;">
+                                                    <i class="fas fa-print me-1"></i> Cetak / WA
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end shadow" style="font-size: 0.85rem;">
+                                                    <!-- Opsi 1: Buka PDF Langsung -->
+                                                    <li>
+                                                        <a class="dropdown-item" href="cetak_pelanggaran.php?id=<?= $row['id_siswa'] ?>" target="_blank">
+                                                            <i class="fas fa-file-pdf text-danger me-2"></i> Cetak PDF Rekap
+                                                        </a>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <!-- Opsi 2: Kirim Link PDF via WhatsApp -->
+                                                    <li>
+                                                        <?php if ($has_wa): ?>
+                                                            <a class="dropdown-item text-success" href="<?= $url_wa ?>" target="_blank">
+                                                                <i class="fab fa-whatsapp me-2"></i> Kirim Link PDF via WA
+                                                            </a>
+                                                        <?php else: ?>
+                                                            <span class="dropdown-item text-muted disabled">
+                                                                <i class="fab fa-whatsapp me-2"></i> No WA Tidak Ada
+                                                            </span>
+                                                        <?php endif; ?>
+                                                    </li>
+                                                </ul>
+                                            </div>
+
                                             <!-- TOMBOL EDIT -->
-                                            <a href="index.php?page=pelanggaran_edit&id=<?= $row['id_kasus_terakhir'] ?>&from_view=pengelompokan" class="btn btn-warning btn-sm text-dark fw-semibold px-2 py-1" style="font-size: 0.75rem; background-color: #ffc107; border: none;">
+                                            <a href="index.php?page=pelanggaran_edit&id=<?= $row['id_kasus_terakhir'] ?>&from_view=pengelompokan" class="btn btn-warning btn-sm text-dark fw-semibold px-2 py-1" style="font-size: 0.75rem; background-color: #ffc107; border: none;" title="Edit Kasus Terakhir">
                                                 <i class="fas fa-edit me-1"></i> Edit
                                             </a>
                                         </div>
@@ -337,7 +409,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                 }
 
                 $q_semua = mysqli_query($conn, "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, s.nis, s.nama AS nama_siswa, 
-                                                       k.nama_kelas, j.nama_pelanggaran, j.poin, u.nama_lengkap AS petugas
+                                                    k.nama_kelas, j.nama_pelanggaran, j.poin, u.nama_lengkap AS petugas
                                                 FROM pelanggaran p
                                                 JOIN siswa s ON p.id_siswa = s.id
                                                 JOIN jenis_pelanggaran j ON p.id_jenis = j.id
