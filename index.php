@@ -1,4 +1,37 @@
+<?php
+// Memulai session (jika diperlukan)
+session_start();
+
+// Jika user sudah terlanjur login, langsung lempar ke halaman dashboard/admin
+if (isset($_SESSION['id'])) {
+    header("Location: index.php?page=beranda"); // Sesuaikan dengan routing halaman utama setelah login
+    exit;
+}
+
+// Jika BELUM login, arahkan paksa ke halaman login
+header("Location: login.php"); // Ganti 'login.php' dengan nama file form login Anda
+exit;
+?>
+
 <!DOCTYPE html>
+<style>
+    /* Styling Dasar */
+    .sidebar { min-height: 100vh; background-color: #2c3e50; }
+    
+    /* Responsive untuk Mobile */
+    @media (max-width: 767.98px) {
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 250px; /* Lebar sidebar di HP */
+            z-index: 1050; /* Biar di atas konten */
+            transition: all 0.3s;
+        }
+        /* Efek biar konten di belakang sidebar tidak bisa diklik saat sidebar terbuka */
+        .sidebar.collapse:not(.show) { display: none; }
+    }
+</style>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -18,8 +51,7 @@
 <body>
     <div class="container-fluid">
         <div class="row">
-            <!-- Sidebar untuk mode HP akan otomatis menyesuaikan dengan col-md-2 -->
-            <div class="col-md-2 col-12 sidebar p-0 d-md-block collapse" id="sidebarMenu">
+            <div class="col-md-2 p-0 collapse d-md-block sidebar" id="sidebarMenu">
                 <?php include 'sidebar.php'; ?>
             </div>
 
@@ -51,6 +83,32 @@
                     echo "<h3>Halaman tidak ditemukan!</h3>";
                     echo "<p class='text-danger'>Sistem tidak dapat menemukan file di: $file_baru</p>";
                 }
+                // ... (setelah variabel $page dan $file_baru ditentukan) ...
+
+$role = $_SESSION['role'];
+
+// Definisi aturan akses
+$akses_terlarang = false;
+
+// Logika pembatasan akses
+if ($role == 'provoost') {
+    // Provoost hanya boleh akses dashboard dan pelanggaran (tambah saja)
+    $allowed = ['beranda', 'pelanggaran', 'pelanggaran_tambah'];
+    if (!in_array($page, $allowed)) {
+        $akses_terlarang = true;
+    }
+} elseif ($role == 'guru') {
+    // Guru boleh akses dashboard dan semua fitur pelanggaran
+    if (strpos($page, 'kelas') !== false || strpos($page, 'user') !== false || strpos($page, 'jenis') !== false) {
+        $akses_terlarang = true;
+    }
+}
+
+if ($akses_terlarang) {
+    echo "<script>Swal.fire('Akses Ditolak', 'Anda tidak memiliki izin ke halaman ini.', 'error')
+          .then(() => { window.location.href='index.php?page=beranda'; });</script>";
+    exit;
+}
                 ?>
             </div>
         </div>
