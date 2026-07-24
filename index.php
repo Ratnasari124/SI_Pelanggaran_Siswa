@@ -1,16 +1,25 @@
 <?php
-// Memulai session (jika diperlukan)
 session_start();
 
-// Jika user sudah terlanjur login, langsung lempar ke halaman dashboard/admin
-if (isset($_SESSION['id'])) {
-    header("Location: index.php?page=beranda"); // Sesuaikan dengan routing halaman utama setelah login
-    exit;
-}
+// 1. Sertakan koneksi database
+include "koneksi.php"; // Sesuaikan dengan nama file koneksi Anda
 
-// Jika BELUM login, arahkan paksa ke halaman login
-header("Location: login.php"); // Ganti 'login.php' dengan nama file form login Anda
-exit;
+// 2. Ambil parameter halaman dari URL (default ke 'beranda' jika kosong)
+$page = isset($_GET['page']) ? $_GET['page'] : 'beranda';
+
+// 3. Pengecekan Halaman Publik vs Halaman Terproteksi
+// Daftar halaman yang boleh diakses TANPA login (misal: halaman login itu sendiri)
+$halaman_publik = ['login', 'proses_login']; 
+
+if (!in_array($page, $halaman_publik)) {
+    // Jika halaman butuh login, tapi session 'id' atau 'username' belum ada:
+    if (!isset($_SESSION['id'])) {
+        // PERHATIKAN: Pastikan ini mengarah ke file form login yang benar, 
+        // dan file form login TERSEBUT TIDAK MEMILIKI script redirect balik ke index jika belum login!
+        header("Location: login.php");
+        exit;
+    }
+}
 ?>
 
 <!DOCTYPE html>
