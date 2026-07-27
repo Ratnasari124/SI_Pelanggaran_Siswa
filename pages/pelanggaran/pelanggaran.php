@@ -397,7 +397,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                 }
 
                 $q_semua = mysqli_query($conn, "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, s.nis, s.nama AS nama_siswa, 
-                                                       k.nama_kelas, j.nama_pelanggaran, j.poin, u.nama_lengkap AS petugas
+                                                       k.nama_kelas, j.nama_pelanggaran, j.poin, u.nama_lengkap AS sanksi
                                                 FROM pelanggaran p
                                                 JOIN siswa s ON p.id_siswa = s.id
                                                 JOIN jenis_pelanggaran j ON p.id_jenis = j.id
@@ -416,10 +416,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                 <th>Nama Siswa</th>
                                 <th>Kelas</th>
                                 <th>Jenis Pelanggaran</th>
-                                <th>Keterangan</th>
                                 <th width="8%" class="text-center">Poin</th>
-                                <th>Petugas</th>
-                                <th width="10%" class="text-center">Aksi</th>
+                                <th width="15%" class="text-center">sanksi</th>
+                                <th width="15%" class="text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -431,9 +430,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                     <td class="fw-bold text-dark"><?= htmlspecialchars($row['nama_siswa']) ?></td>
                                     <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($row['nama_kelas'] ?? '-') ?></span></td>
                                     <td class="fw-semibold text-danger"><?= htmlspecialchars($row['nama_pelanggaran']) ?></td>
-                                    <td><small class="text-muted"><?= htmlspecialchars($row['keterangan'] ?: '-') ?></small></td>
                                     <td class="text-center"><span class="badge bg-danger rounded-pill px-2 py-1">+<?= $row['poin'] ?></span></td>
-                                    <td><small class="text-secondary"><?= htmlspecialchars($row['petugas'] ?? '-') ?></small></td>
+                                    <td><small class="text-secondary"><?= htmlspecialchars($row['sanksi'] ?? '-') ?></small></td>
                                     <!-- TOMBOL DETAIL SAJA -->
                                     <td class="text-center">
                                         <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-info btn-sm text-white px-3" title="Lihat Detail Kejadian">

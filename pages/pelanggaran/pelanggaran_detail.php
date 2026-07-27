@@ -89,25 +89,20 @@ if ($from_view == 'pengelompokan'):
 
     $total_poin = (int) $siswa['total_poin'];
 
-    // Penentuan Sanksi Berdasarkan Poin Kumulatif
-    $sanksi = "Belum Ada Sanksi (Siswa Berkepribadian Baik)";
-    $badge_sanksi = "bg-success";
+    // =========================================================================
+    // HANYA MENGUBAH PENENTUAN SANKSI BERDASARKAN TABEL `sanksi` INI
+    // =========================================================================
+    $q_sanksi = mysqli_query($conn, "SELECT nama_sanksi 
+                                     FROM sanksi 
+                                     WHERE min_poin <= $total_poin AND max_poin >= $total_poin 
+                                     ORDER BY min_poin DESC 
+                                     LIMIT 1");
 
-    if ($total_poin >= 100) {
-        $sanksi = "Dikembalikan kepada Orang Tua / Wali (Skorsing Permanen / Dikeluarkan)";
-        $badge_sanksi = "bg-danger";
-    } elseif ($total_poin >= 75) {
-        $sanksi = "Skorsing Sekolah selama 3 Hari + Pemanggilan Orang Tua ke-3";
-        $badge_sanksi = "bg-danger";
-    } elseif ($total_poin >= 50) {
-        $sanksi = "Surat Peringatan II (SP 2) + Pemanggilan Orang Tua ke-2";
-        $badge_sanksi = "bg-warning text-dark";
-    } elseif ($total_poin >= 25) {
-        $sanksi = "Surat Peringatan I (SP 1) + Pemanggilan Orang Tua ke-1";
-        $badge_sanksi = "bg-warning text-dark";
-    } elseif ($total_poin >= 10) {
-        $sanksi = "Peringatan Lisan & Pembinaan oleh Guru BK / Wali Kelas";
-        $badge_sanksi = "bg-info text-white";
+    if ($q_sanksi && mysqli_num_rows($q_sanksi) > 0) {
+        $data_sanksi = mysqli_fetch_assoc($q_sanksi);
+        $sanksi = $data_sanksi['nama_sanksi'];
+    } else {
+        $sanksi = "Belum Ada Sanksi (Siswa Berkepribadian Baik)";
     }
 
     // 2. Ambil Semua Rincian Kasus Siswa
@@ -305,7 +300,7 @@ if ($from_view == 'pengelompokan'):
                         <i class="fas fa-gavel me-1"></i> Rekomendasi Sanksi Siswa:
                     </small>
                     <div class="fw-bold text-dark fs-6 mt-1">
-                        <?= $sanksi ?>
+                        <?= htmlspecialchars($sanksi) ?>
                     </div>
                 </div>
             </div>
@@ -384,12 +379,12 @@ if ($from_view == 'pengelompokan'):
     <?php
     $q_semua_detail = mysqli_query($conn, "SELECT p.id, p.tanggal, p.keterangan, s.nis, s.nama AS nama_siswa, 
                                                    k.nama_kelas, j.nama_pelanggaran, j.poin, u.nama_lengkap AS petugas
-                                           FROM pelanggaran p
-                                           JOIN siswa s ON p.id_siswa = s.id
-                                           JOIN jenis_pelanggaran j ON p.id_jenis = j.id
-                                           LEFT JOIN kelas k ON s.id_kelas = k.id
-                                           LEFT JOIN users u ON p.id_user = u.id
-                                           WHERE p.id = '$id_target'");
+                                            FROM pelanggaran p
+                                            JOIN siswa s ON p.id_siswa = s.id
+                                            JOIN jenis_pelanggaran j ON p.id_jenis = j.id
+                                            LEFT JOIN kelas k ON s.id_kelas = k.id
+                                            LEFT JOIN users u ON p.id_user = u.id
+                                            WHERE p.id = '$id_target'");
 
     $d_semua = mysqli_fetch_assoc($q_semua_detail);
     ?>
