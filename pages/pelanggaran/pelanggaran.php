@@ -9,7 +9,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // =========================================================================
-// 1. MEKANISME SESSION KUNCI VIEW
+// 1. MEKANISME SESSION KUNCI VIEW & AMBIL PARAMETER PENCARIAN & TANGGAL
 // =========================================================================
 if (isset($_GET['view']) && in_array($_GET['view'], ['pengelompokan', 'semua'])) {
     $_SESSION['last_view_pelanggaran'] = $_GET['view'];
@@ -18,7 +18,10 @@ if (isset($_GET['view']) && in_array($_GET['view'], ['pengelompokan', 'semua']))
 // Hanya ambil view dari parameter URL (jika kosong, tampilkan halaman awal bersih)
 $view = $_GET['view'] ?? '';
 
-$search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
+// Ambil parameter filter
+$search          = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
+$tgl_mulai       = isset($_GET['tgl_mulai']) ? mysqli_real_escape_string($conn, $_GET['tgl_mulai']) : '';
+$tgl_selesai     = isset($_GET['tgl_selesai']) ? mysqli_real_escape_string($conn, $_GET['tgl_selesai']) : '';
 $id_kelas_filter = isset($_GET['kelas']) ? mysqli_real_escape_string($conn, $_GET['kelas']) : '';
 
 // ==========================================
@@ -33,6 +36,14 @@ if (isset($_GET['action']) && $_GET['action'] == 'export_excel_semua') {
     }
     if (!empty($id_kelas_filter)) {
         $where .= " AND s.id_kelas = '$id_kelas_filter'";
+    }
+    // Filter Rentang Tanggal
+    if (!empty($tgl_mulai) && !empty($tgl_selesai)) {
+        $where .= " AND p.tanggal BETWEEN '$tgl_mulai' AND '$tgl_selesai'";
+    } elseif (!empty($tgl_mulai)) {
+        $where .= " AND p.tanggal >= '$tgl_mulai'";
+    } elseif (!empty($tgl_selesai)) {
+        $where .= " AND p.tanggal <= '$tgl_selesai'";
     }
 
     $q_excel = mysqli_query($conn, "SELECT p.tanggal, s.nis, s.nama AS nama_siswa, k.nama_kelas, j.nama_pelanggaran, j.poin, p.keterangan, u.nama_lengkap AS petugas
@@ -87,6 +98,14 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
     }
     if (!empty($id_kelas_filter)) {
         $where .= " AND s.id_kelas = '$id_kelas_filter'";
+    }
+    // Filter Rentang Tanggal
+    if (!empty($tgl_mulai) && !empty($tgl_selesai)) {
+        $where .= " AND p.tanggal BETWEEN '$tgl_mulai' AND '$tgl_selesai'";
+    } elseif (!empty($tgl_mulai)) {
+        $where .= " AND p.tanggal >= '$tgl_mulai'";
+    } elseif (!empty($tgl_selesai)) {
+        $where .= " AND p.tanggal <= '$tgl_selesai'";
     }
 
     $q_cetak = mysqli_query($conn, "SELECT p.tanggal, s.nis, s.nama AS nama_siswa, k.nama_kelas, j.nama_pelanggaran, j.poin, p.keterangan, u.nama_lengkap AS petugas
@@ -190,7 +209,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
 
 <div class="container-fluid px-4 py-4">
 
-    <!-- HEADER: BANNER DROPDOWN PILIHAN MODE -->
     <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
         <div class="card-body p-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
@@ -200,7 +218,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                 <p class="text-muted small mb-0">Pilih mode pengelompokan data untuk memulai pengelolaan.</p>
             </div>
             
-            <!-- DROPDOWN MODE TAMPILAN -->
             <div class="d-flex align-items-center gap-2">
                 <label class="form-label small mb-0 fw-semibold text-secondary">Mode Tampilan :</label>
                 <select class="form-select form-select-sm fw-bold border-primary text-primary" style="width: auto;" onchange="location = this.value;">
@@ -212,9 +229,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
         </div>
     </div>
 
-    <!-- AREA KONTEN UTAMA -->
     <?php if (empty($view)): ?>
-        <!-- TAMPILAN KOSONG / AWAL SAAT KLIK MENU CATAT PELANGGARAN -->
         <div class="card border-0 shadow-sm rounded-3 bg-white p-5 text-center my-2">
             <div class="py-5">
                 <i class="fas fa-filter text-secondary mb-3" style="font-size: 3.5rem; opacity: 0.3;"></i>
@@ -225,42 +240,75 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
             </div>
         </div>
     <?php else: ?>
-        <!-- TAMPILAN DATA SETELAH MODE DIPILIH (PENGELOMPOKAN / SEMUA) -->
         <div class="card border-0 shadow-sm rounded-3 bg-white p-3">
 
-            <!-- SEARCH BAR & TOMBOL TAMBAH -->
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                <form method="GET" action="index.php" class="d-flex gap-2" style="max-width: 450px; width: 100%;">
-                    <input type="hidden" name="page" value="pelanggaran">
-                    <input type="hidden" name="view" value="<?= htmlspecialchars($view) ?>">
+            <?php if ($view == 'semua'): ?>
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                     
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
-                        <input type="text" name="search" class="form-control border-start-0" placeholder="Ketik NAMA DEPAN siswa..." value="<?= htmlspecialchars($search) ?>">
-                        <button type="submit" class="btn btn-primary px-3">Cari</button>
-                        <?php if (!empty($search)): ?>
-                            <a href="index.php?page=pelanggaran&view=<?= htmlspecialchars($view) ?>" class="btn btn-outline-secondary">Reset</a>
-                        <?php endif; ?>
-                    </div>
-                </form>
+                    <form method="GET" action="index.php" class="d-flex flex-wrap align-items-center gap-2">
+                        <input type="hidden" name="page" value="pelanggaran">
+                        <input type="hidden" name="view" value="semua">
 
-                <div class="d-flex gap-2">
-                    <?php if ($view == 'semua'): ?>
-                        <a href="index.php?page=pelanggaran&view=semua&action=cetak_pdf_semua&search=<?= urlencode($search) ?>" target="_blank" class="btn btn-danger btn-sm px-3">
+                        <div class="input-group input-group-sm" style="width: auto;">
+                            <span class="input-group-text bg-white" title="Filter Tanggal"><i class="fas fa-calendar-alt text-muted"></i></span>
+                            <input type="date" name="tgl_mulai" class="form-control" value="<?= htmlspecialchars($tgl_mulai) ?>" title="Tanggal Mulai">
+                            <span class="input-group-text bg-light">s/d</span>
+                            <input type="date" name="tgl_selesai" class="form-control" value="<?= htmlspecialchars($tgl_selesai) ?>" title="Tanggal Selesai">
+                        </div>
+
+                        <div class="input-group input-group-sm" style="width: 220px;">
+                            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                            <input type="text" name="search" class="form-control" placeholder="Cari nama / NIS / jenis..." value="<?= htmlspecialchars($search) ?>">
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-sm">
+                            <i class="fas fa-filter me-1"></i> Filter
+                        </button>
+
+                        <?php if (!empty($search) || !empty($tgl_mulai) || !empty($tgl_selesai)): ?>
+                            <a href="index.php?page=pelanggaran&view=semua" class="btn btn-secondary btn-sm" title="Reset Filter">
+                                <i class="fas fa-sync-alt"></i> Reset
+                            </a>
+                        <?php endif; ?>
+                    </form>
+
+                    <div class="d-flex align-items-center gap-1">
+                        <a href="index.php?page=pelanggaran_tambah&from_view=semua" class="btn btn-primary btn-sm fw-semibold">
+                            <i class="fas fa-plus me-1"></i> Tambah Pelanggaran
+                        </a>
+                        <a href="index.php?page=pelanggaran&view=semua&action=cetak_pdf_semua&search=<?= urlencode($search) ?>&tgl_mulai=<?= urlencode($tgl_mulai) ?>&tgl_selesai=<?= urlencode($tgl_selesai) ?>" target="_blank" class="btn btn-danger btn-sm">
                             <i class="fas fa-file-pdf me-1"></i> Cetak PDF
                         </a>
-                        <a href="index.php?page=pelanggaran&view=semua&action=export_excel_semua&search=<?= urlencode($search) ?>" class="btn btn-success btn-sm px-3">
+                        <a href="index.php?page=pelanggaran&view=semua&action=export_excel_semua&search=<?= urlencode($search) ?>&tgl_mulai=<?= urlencode($tgl_mulai) ?>&tgl_selesai=<?= urlencode($tgl_selesai) ?>" class="btn btn-success btn-sm">
                             <i class="fas fa-file-excel me-1"></i> Simpan Excel
                         </a>
-                    <?php endif; ?>
+                    </div>
 
-                    <a href="index.php?page=pelanggaran_tambah&from_view=<?= htmlspecialchars($view) ?>" class="btn btn-danger btn-sm px-3 fw-semibold">
-                        <i class="fas fa-plus me-1"></i> Tambah
-                    </a>
                 </div>
-            </div>
+            <?php else: ?>
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                    <form method="GET" action="index.php" class="d-flex gap-2" style="max-width: 450px; width: 100%;">
+                        <input type="hidden" name="page" value="pelanggaran">
+                        <input type="hidden" name="view" value="pengelompokan">
+                        
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
+                            <input type="text" name="search" class="form-control border-start-0" placeholder="Ketik NAMA / NIS siswa..." value="<?= htmlspecialchars($search) ?>">
+                            <button type="submit" class="btn btn-primary px-3">Cari</button>
+                            <?php if (!empty($search)): ?>
+                                <a href="index.php?page=pelanggaran&view=pengelompokan" class="btn btn-outline-secondary">Reset</a>
+                            <?php endif; ?>
+                        </div>
+                    </form>
 
-            <!-- TABEL MODE PENGELOMPOKAN SISWA -->
+                    <div>
+                        <a href="index.php?page=pelanggaran_tambah&from_view=pengelompokan" class="btn btn-danger btn-sm px-3 fw-semibold">
+                            <i class="fas fa-plus me-1"></i> Tambah
+                        </a>
+                    </div>
+                </div>
+            <?php endif; ?>
+
             <?php if ($view == 'pengelompokan'): ?>
                 <?php
                 if (!function_exists('formatNoWA')) {
@@ -348,12 +396,10 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                     </td>
                                     <td class="text-center">
                                         <div class="d-inline-flex gap-1 flex-wrap justify-content-center">
-                                            <!-- TOMBOL DETAIL SAJA -->
                                             <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_siswa'] ?>&from_view=pengelompokan" class="btn btn-info btn-sm text-white px-2 py-1" style="font-size: 0.75rem; background-color: #0dcaf0; border: none;" title="Lihat Detail Rekap">
                                                 <i class="fas fa-eye me-1"></i> Detail
                                             </a>
 
-                                            <!-- DROPDOWN BUTTON CETAK / SEND WA -->
                                             <div class="btn-group">
                                                 <button type="button" class="btn btn-secondary btn-sm dropdown-toggle px-2 py-1" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.75rem;">
                                                     <i class="fas fa-print me-1"></i> Cetak / WA
@@ -388,12 +434,18 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                     </table>
                 </div>
 
-            <!-- TABEL MODE SEMUA PELANGGARAN -->
             <?php else: ?>
                 <?php
                 $where_semua = "WHERE 1=1";
                 if (!empty($search)) {
                     $where_semua .= " AND (s.nama LIKE '%$search%' OR s.nis LIKE '%$search%' OR j.nama_pelanggaran LIKE '%$search%')";
+                }
+                if (!empty($tgl_mulai) && !empty($tgl_selesai)) {
+                    $where_semua .= " AND p.tanggal BETWEEN '$tgl_mulai' AND '$tgl_selesai'";
+                } elseif (!empty($tgl_mulai)) {
+                    $where_semua .= " AND p.tanggal >= '$tgl_mulai'";
+                } elseif (!empty($tgl_selesai)) {
+                    $where_semua .= " AND p.tanggal <= '$tgl_selesai'";
                 }
 
                 $q_semua = mysqli_query($conn, "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, s.nis, s.nama AS nama_siswa, 
@@ -417,7 +469,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                 <th>Kelas</th>
                                 <th>Jenis Pelanggaran</th>
                                 <th width="8%" class="text-center">Poin</th>
-                                <th width="15%" class="text-center">sanksi</th>
+                                <th width="15%" class="text-center">Petugas/Sanksi</th>
                                 <th width="15%" class="text-center">Aksi</th>
                             </tr>
                         </thead>
@@ -432,7 +484,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                     <td class="fw-semibold text-danger"><?= htmlspecialchars($row['nama_pelanggaran']) ?></td>
                                     <td class="text-center"><span class="badge bg-danger rounded-pill px-2 py-1">+<?= $row['poin'] ?></span></td>
                                     <td><small class="text-secondary"><?= htmlspecialchars($row['sanksi'] ?? '-') ?></small></td>
-                                    <!-- TOMBOL DETAIL SAJA -->
                                     <td class="text-center">
                                         <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-info btn-sm text-white px-3" title="Lihat Detail Kejadian">
                                             <i class="fas fa-eye me-1"></i> Detail
@@ -440,7 +491,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                     </td>
                                 </tr>
                             <?php endwhile; else: ?>
-                                <tr><td colspan="10" class="text-center py-4 text-muted">Belum ada data pelanggaran.</td></tr>
+                                <tr><td colspan="9" class="text-center py-4 text-muted">Belum ada data pelanggaran.</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
