@@ -20,9 +20,9 @@ $view = $_GET['view'] ?? '';
 
 // Ambil parameter filter
 $search          = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
-$tgl_mulai       = isset($_GET['tgl_mulai']) ? mysqli_real_escape_string($conn, $_GET['tgl_mulai']) : '';
-$tgl_selesai     = isset($_GET['tgl_selesai']) ? mysqli_real_escape_string($conn, $_GET['tgl_selesai']) : '';
-$id_kelas_filter = isset($_GET['kelas']) ? mysqli_real_escape_string($conn, $_GET['kelas']) : '';
+$tgl_mulai       = isset($_GET['tgl_mulai']) ? mysqli_real_escape_string($conn, trim($_GET['tgl_mulai'])) : '';
+$tgl_selesai     = isset($_GET['tgl_selesai']) ? mysqli_real_escape_string($conn, trim($_GET['tgl_selesai'])) : '';
+$id_kelas_filter = isset($_GET['kelas']) ? mysqli_real_escape_string($conn, trim($_GET['kelas'])) : '';
 
 // ==========================================
 // 2. PROSES EXPORT EXCEL (SEMUA PELANGGARAN)
@@ -469,7 +469,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                 <th>Kelas</th>
                                 <th>Jenis Pelanggaran</th>
                                 <th width="8%" class="text-center">Poin</th>
-                                <th width="15%" class="text-center">Petugas</th>
+                                <th width="10%" class="text-center">Petugas</th>
                                 <th width="15%" class="text-center">Aksi</th>
                             </tr>
                         </thead>
