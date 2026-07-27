@@ -25,37 +25,28 @@ if (isset($_POST['simpan_pengurangan'])) {
     $poin_kurang   = intval($_POST['jumlah_poin_kurang']);
     $tanggal       = mysqli_real_escape_string($conn, $_POST['tanggal']);
     
-    // Ambil ID User dari Session LOGIN (jika ada), jika tidak gunakan ID dari form atau default 1
     if (isset($_SESSION['id_user'])) {
         $id_user = intval($_SESSION['id_user']);
     } elseif (isset($_SESSION['user_id'])) {
         $id_user = intval($_SESSION['user_id']);
     } else {
-        // Jika form mengirim string (seperti 'bk'), konversi nilai input menjadi ID berupa angka
         $id_user = is_numeric($_POST['petugas']) ? intval($_POST['petugas']) : 1; 
     }
 
     if (!empty($kegiatan) && $poin_kurang > 0 && !empty($tanggal)) {
-        
-        // Mulai Transaksi Database
         mysqli_begin_transaction($conn);
 
         try {
-
-          // 1. Simpan Catatan / Riwayat Pengurangan Poin (Disesuaikan dengan struktur tabel poin_pengurang)
             $q_insert = "INSERT INTO poin_pengurang (id_siswa, kegiatan, jumlah_pengurang, tanggal, id_user) 
                          VALUES ('$id_siswa', '$kegiatan', '$poin_kurang', '$tanggal', '$id_user')";
-            
             mysqli_query($conn, $q_insert);
 
-            // 2. Potong Nilai Poin pada Jenis Pelanggaran
             $q_update = "UPDATE pelanggaran p 
                          JOIN jenis_pelanggaran j ON p.id_jenis = j.id 
                          SET j.poin = GREATEST(0, j.poin - $poin_kurang) 
                          WHERE p.id = '$id_pelanggaran'";
             mysqli_query($conn, $q_update);
 
-            // Commit transaksi
             mysqli_commit($conn);
 
             echo "<script>
@@ -65,7 +56,6 @@ if (isset($_POST['simpan_pengurangan'])) {
             exit;
 
         } catch (Exception $e) {
-            // Rollback jika query gagal
             mysqli_rollback($conn);
             echo "<script>alert('Gagal mengurangi poin: " . addslashes($e->getMessage()) . "');</script>";
         }
@@ -76,7 +66,6 @@ if (isset($_POST['simpan_pengurangan'])) {
 
 // =========================================================================
 // KONDISI 1: DETAIL DARI MENU "PENGELOMPOKAN SISWA"
-// $id_target di sini adalah ID SISWA (s.id)
 // =========================================================================
 if ($from_view == 'pengelompokan'):
 
@@ -131,68 +120,119 @@ if ($from_view == 'pengelompokan'):
 ?>
 
 <style>
+    /* Elemen khusus cetak disembunyikan di layar komputer biasa */
+    .area-cetak-kop, .area-ttd-cetak {
+        display: none;
+    }
+
+    /* Pengaturan Tampilan Khusus Cetak/PDF */
     @media print {
-        /* Sembunyikan elemen navigasi & tombol yang tidak perlu */
-        .no-print, .btn, .modal, nav, header, sidebar, .main-header, .main-sidebar, .card-header {
+        /* Sembunyikan elemen navigasi & tombol saja */
+        .no-print, .btn, .modal, nav, header, sidebar, .main-header, .main-sidebar, .col-aksi {
             display: none !important;
         }
-        /* Sembunyikan kolom Aksi di tabel saat dicetak */
-        .col-aksi, td:last-child, th:last-child {
-            display: none !important;
+
+        /* Pastikan elemen utama tetap tampil */
+        body, html, .container-fluid, .row, .col-md-5, .col-md-7, .card, .card-body, .table-responsive, table {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            float: none !important;
+            width: 100% !important;
         }
+
         body {
-            background: #fff !important;
-            color: #000 !important;
-            font-size: 11pt;
-            margin: 0;
-            padding: 0;
-        }
-        .container-fluid {
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            font-family: Arial, sans-serif !important;
+            font-size: 11pt !important;
+            margin: 0 !important;
             padding: 0 !important;
         }
-        .card {
-            border: 1px solid #333 !important;
-            box-shadow: none !important;
-            margin-bottom: 15px !important;
-        }
-        .area-cetak-header {
+
+        /* Kop Laporan */
+        .area-cetak-kop {
             display: block !important;
             text-align: center;
             border-bottom: 2px solid #000;
             padding-bottom: 10px;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
+
+        .area-cetak-kop h3 {
+            margin: 0;
+            font-weight: bold;
+            font-size: 14pt;
+        }
+
+        .area-cetak-kop p {
+            margin: 2px 0 0 0;
+            font-size: 10pt;
+        }
+
+        /* Tampilan Card & Box di Kertas */
+        .card {
+            border: 1px solid #000 !important;
+            box-shadow: none !important;
+            margin-bottom: 15px !important;
+            background: #fff !important;
+        }
+
+        .card-header {
+            background-color: #f2f2f2 !important;
+            color: #000 !important;
+            border-bottom: 1px solid #000 !important;
+            font-weight: bold;
+        }
+
+        /* Tampilan Tabel di Kertas */
         .table {
-            border-collapse: collapse !important;
             width: 100% !important;
+            border-collapse: collapse !important;
+            margin-bottom: 15px !important;
         }
+
         .table th, .table td {
-            border: 1px solid #333 !important;
-            padding: 5px 8px !important;
+            border: 1px solid #000 !important;
+            padding: 6px 8px !important;
+            color: #000 !important;
         }
-        .area-ttd {
-            display: block !important;
+
+        .table-dark {
+            background-color: #eee !important;
+            color: #000 !important;
+        }
+
+        /* Sembunyikan kolom aksi saja dalam tabel */
+        th.col-aksi, td.col-aksi {
+            display: none !important;
+        }
+
+        /* Area Tanda Tangan */
+        .area-ttd-cetak {
+            display: flex !important;
+            justify-content: space-between;
             margin-top: 30px;
-            float: right;
-            width: 200px;
-            text-align: center;
+            page-break-inside: avoid;
         }
+
+        .box-ttd {
+            text-align: center;
+            width: 40%;
+        }
+
         @page {
             size: A4 portrait;
-            margin: 15mm;
+            margin: 1.5cm;
         }
-    }
-    /* Sembunyikan Header Cetak dan TTD pada Tampilan Normal Browser */
-    .area-cetak-header, .area-ttd {
-        display: none;
     }
 </style>
 
-<div class="container-fluid px-4 py-3">
+<div class="container-fluid px-4 py-3" id="area-cetak-utama">
 
-    <div class="area-cetak-header">
-        <h3 style="margin:0; text-transform:uppercase;">REKAPITULASI PELANGGARAN SISWA</h3>
-        <p style="margin:2px 0 0 0; font-size:10pt; color:#444;">Laporan Bimbingan Konseling (BK) & Kesiswaan</p>
+    <div class="area-cetak-kop">
+        <h3>LEMBAR REKAPITULASI CATATAN PELANGGARAN SISWA</h3>
+        <p>Laporan Resmi Bimbingan Konseling (BK) & Kedisiplinan Siswa</p>
     </div>
 
     <div class="d-flex justify-content-between align-items-center mb-3 no-print">
@@ -202,7 +242,7 @@ if ($from_view == 'pengelompokan'):
         </div>
         <div class="d-flex gap-2">
             <button onclick="window.print()" class="btn btn-danger btn-sm px-3">
-                <i class="fas fa-file-pdf me-1"></i> Cetak PDF
+                <i class="fas fa-print me-1"></i> Cetak / Simpan PDF
             </button>
             
             <a href="index.php?page=pelanggaran&view=<?= isset($from_view) ? $from_view : 'pengelompokan' ?>" class="btn btn-light btn-sm border px-3">
@@ -242,44 +282,37 @@ if ($from_view == 'pengelompokan'):
         <div class="col-md-7 d-flex flex-column justify-content-between gap-2">
             <div class="row g-2">
                 <div class="col-6">
-                    <div class="card shadow-sm border-0 text-white h-100" style="background-color: #1f0777;">
+                    <div class="card shadow-sm border-0 text-white h-100" style="background-color: #3313a7;">
                         <div class="card-body py-3">
-                            <small class="text-uppercase fw-semibold" style="letter-spacing: 0.5px;">TOTAL KASUS</small>
+                            <small class="text-uppercase fw-semibold">TOTAL KASUS</small>
                             <div class="fs-3 fw-bold mt-1"><?= $siswa['total_kasus'] ?> <span class="fs-6 fw-normal">Kejadian</span></div>
                         </div>
                     </div>
                 </div>
                 <div class="col-6">
-                    <div class="card shadow-sm border-0 text-white h-100" style="background-color: #7c020e;">
+                    <div class="card shadow-sm border-0 text-white h-100" style="background-color: #a70415;">
                         <div class="card-body py-3">
-                            <small class="text-uppercase fw-semibold" style="letter-spacing: 0.5px;">AKUMULASI POIN</small>
+                            <small class="text-uppercase fw-semibold">AKUMULASI POIN</small>
                             <div class="fs-3 fw-bold mt-1">+<?= $siswa['total_poin'] ?> <span class="fs-6 fw-normal">Poin</span></div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card shadow-sm border-0 text-white" style="background-color: #ffc107ab; color: #212529 !important;">
+            <div class="card shadow-sm border-0 text-dark" style="background-color: #624ccf; border: 1px solid #1d1d9c !important;">
                 <div class="card-body py-2 px-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <small class="text-uppercase fw-bold text-dark d-block" style="font-size: 0.7rem; letter-spacing: 0.5px;">
-                                <i class="fas fa-gavel me-1"></i> Rekomendasi Sanksi Siswa:
-                            </small>
-                            <div class="fw-bold text-dark fs-6 mt-1">
-                                <?= $sanksi ?>
-                            </div>
-                        </div>
-                        <span class="badge <?= $badge_sanksi ?> px-2 py-1" style="font-size: 0.75rem;">
-                            <?= $total_poin ?> Pts
-                        </span>
+                    <small class="text-uppercase fw-bold text-dark d-block" style="font-size: 0.7rem;">
+                        <i class="fas fa-gavel me-1"></i> Rekomendasi Sanksi Siswa:
+                    </small>
+                    <div class="fw-bold text-dark fs-6 mt-1">
+                        <?= $sanksi ?>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="card shadow-sm border-0">
+    <div class="card shadow-sm border-0 mb-3">
         <div class="card-header text-white fw-bold py-2" style="background-color: #970816;">
             <i class="fas fa-history me-1"></i> Data Record Pelanggaran Terbuku
         </div>
@@ -288,15 +321,15 @@ if ($from_view == 'pengelompokan'):
                 <table class="table table-hover align-middle mb-0" style="font-size: 0.85rem;">
                     <thead class="table-dark">
                         <tr>
-                            <th width="4%" class="text-center">No</th>
-                            <th width="11%">Tanggal</th>
+                            <th width="5%" class="text-center">No</th>
+                            <th width="12%">Tanggal</th>
                             <th width="12%">NIS</th>
-                            <th width="18%">Nama Siswa</th>
-                            <th width="8%">Kelas</th>
+                            <th width="20%">Nama Siswa</th>
+                            <th width="10%">Kelas</th>
                             <th width="12%">Petugas</th>
                             <th>Jenis Pelanggaran</th>
-                            <th width="7%" class="text-center">Poin</th>
-                            <th width="14%" class="text-center col-aksi">Aksi</th>
+                            <th width="8%" class="text-center">Poin</th>
+                            <th width="12%" class="text-center col-aksi">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -304,89 +337,24 @@ if ($from_view == 'pengelompokan'):
                             <tr>
                                 <td class="text-center"><?= $no++ ?></td>
                                 <td><?= date('d/m/Y', strtotime($row['tanggal'])) ?></td>
-                                <td class="text-secondary"><?= htmlspecialchars($siswa['nis'] ?? '-') ?></td>
-                                <td class="fw-bold text-dark"><?= htmlspecialchars($siswa['nama_siswa'] ?? '-') ?></td>
-                                <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($siswa['nama_kelas'] ?? '-') ?></span></td>
-                                <td><small class="text-secondary"><?= htmlspecialchars($row['petugas'] ?? 'guru umum') ?></small></td>
-                                <td class="fw-semibold text-dark"><?= htmlspecialchars($row['nama_pelanggaran']) ?></td>
-                                <td class="text-center">
-                                    <span class="badge bg-danger rounded-pill px-2 py-1">+<?= $row['poin'] ?></span>
-                                </td>
+                                <td><?= htmlspecialchars($siswa['nis'] ?? '-') ?></td>
+                                <td class="fw-bold"><?= htmlspecialchars($siswa['nama_siswa'] ?? '-') ?></td>
+                                <td><?= htmlspecialchars($siswa['nama_kelas'] ?? '-') ?></td>
+                                <td><small><?= htmlspecialchars($row['petugas'] ?? 'guru umum') ?></small></td>
+                                <td class="fw-semibold"><?= htmlspecialchars($row['nama_pelanggaran']) ?></td>
+                                <td class="text-center">+<?= $row['poin'] ?></td>
                                 <td class="text-center col-aksi">
-                                    <div class="btn-group btn-group-sm" role="group">
-                                        <a href="index.php?page=pelanggaran_edit&id=<?= $row['id'] ?>" class="btn btn-warning btn-sm text-dark" title="Edit Pelanggaran">
-                                            <i class="fas fa-edit"></i> Edit
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="index.php?page=pelanggaran_edit&id=<?= $row['id'] ?>" class="btn btn-warning btn-sm text-dark">
+                                            <i class="fas fa-edit"></i>
                                         </a>
-                                        <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalKurangPoin<?= $row['id'] ?>" title="Pengurangan Poin">
-                                            <i class="fas fa-minus-circle"></i> - Poin
+                                        <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalKurangPoin<?= $row['id'] ?>">
+                                            <i class="fas fa-minus-circle"></i>
                                         </button>
                                     </div>
                                 </td>
                             </tr>
-
-                            <div class="modal fade" id="modalKurangPoin<?= $row['id'] ?>" tabindex="-1" aria-labelledby="modalLabel<?= $row['id'] ?>" aria-hidden="true">
-                                <div class="modal-dialog modal-dialog-centered">
-                                    <div class="modal-content">
-                                        <div class="modal-header bg-success text-white py-2">
-                                            <h6 class="modal-title fw-bold" id="modalLabel<?= $row['id'] ?>">
-                                                <i class="fas fa-minus-circle me-1"></i> Form Pengurangan Poin Siswa
-                                            </h6>
-                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                                        </div>
-                                        <form action="" method="POST">
-                                            <div class="modal-body text-start" style="font-size: 0.875rem;">
-                                                <input type="hidden" name="id_pelanggaran" value="<?= $row['id'] ?>">
-                                                <input type="hidden" name="id_siswa" value="<?= $siswa['id'] ?>">
-
-                                                <div class="bg-light p-2 rounded border mb-3">
-                                                    <small class="d-block text-muted"><strong>Siswa:</strong> <?= htmlspecialchars($siswa['nama_siswa']) ?> (<?= htmlspecialchars($siswa['nis']) ?>)</small>
-                                                    <small class="d-block text-muted"><strong>Pelanggaran:</strong> <?= htmlspecialchars($row['nama_pelanggaran']) ?> (+<?= $row['poin'] ?> Poin)</small>
-                                                </div>
-
-                                                <div class="mb-3">
-                                                    <label class="form-label fw-semibold">Kegiatan Pembinaan / Positif <span class="text-danger">*</span></label>
-                                                    <select name="kegiatan_pembinaan" class="form-select form-select-sm" required>
-                                                        <option value="">-- Pilih Kegiatan Pembinaan --</option>
-                                                        <option value="Membersihkan Lingkungan Sekolah / Perpustakaan">Membersihkan Lingkungan Sekolah / Perpustakaan</option>
-                                                        <option value="Mengikuti Pembinaan Khusus Guru BK">Mengikuti Pembinaan Khusus Guru BK</option>
-                                                        <option value="Setoran Hafalan / Kegiatan Keagamaan">Setoran Hafalan / Kegiatan Keagamaan</option>
-                                                        <option value="Prestasi Akademik / Non-Akademik">Prestasi Akademik / Non-Akademik</option>
-                                                        <option value="Tugas Tambahan Pembiasaan Disiplin">Tugas Tambahan Pembiasaan Disiplin</option>
-                                                    </select>
-                                                </div>
-
-                                                <div class="mb-3">
-                                                    <label class="form-label fw-semibold">Jumlah Pengurangan Poin <span class="text-danger">*</span></label>
-                                                    <div class="input-group input-group-sm">
-                                                        <span class="input-group-text bg-light text-danger fw-bold">-</span>
-                                                        <input type="number" name="jumlah_poin_kurang" class="form-control" placeholder="Masukkan angka (contoh: 10)" min="1" max="<?= $row['poin'] ?>" required>
-                                                        <span class="input-group-text bg-light">Poin</span>
-                                                    </div>
-                                                </div>
-
-                                                <div class="row g-2 mb-3">
-                                                    <div class="col-md-6">
-                                                        <label class="form-label fw-semibold">Tanggal <span class="text-danger">*</span></label>
-                                                        <input type="date" name="tanggal" class="form-control form-select-sm" value="<?= date('Y-m-d') ?>" required>
-                                                    </div>
-
-                                                    <div class="col-md-6">
-                                                        <label class="form-label fw-semibold">Petugas / Pencatat <span class="text-danger">*</span></label>
-                                                        <input type="text" name="petugas" class="form-control form-select-sm" placeholder="Nama Guru / BK" required>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer py-2">
-                                                <button type="button" class="btn btn-light btn-sm border" data-bs-dismiss="modal">Batal</button>
-                                                <button type="submit" name="simpan_pengurangan" class="btn btn-success btn-sm">
-                                                    <i class="fas fa-save me-1"></i> Simpan Pengurangan
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-                            <?php endwhile; else: ?>
+                        <?php endwhile; else: ?>
                             <tr>
                                 <td colspan="9" class="text-center py-4 text-muted">Belum ada record data pelanggaran terbuku.</td>
                             </tr>
@@ -397,10 +365,17 @@ if ($from_view == 'pengelompokan'):
         </div>
     </div>
 
-    <div class="area-ttd">
-        <p>Guru BK / Kesiswaan</p>
-        <br><br><br>
-        <p><strong>( ________________________ )</strong></p>
+    <div class="area-ttd-cetak">
+        <div class="box-ttd">
+            <p>Mengetahui,<br>Wali Kelas</p>
+            <br><br><br>
+            <p><strong>( ____________________ )</strong></p>
+        </div>
+        <div class="box-ttd">
+            <p>Tanggal Cetak: <?= date('d/m/Y') ?><br>Guru Bimbingan Konseling</p>
+            <br><br><br>
+            <p><strong>( ____________________ )</strong></p>
+        </div>
     </div>
 
 </div>
@@ -417,59 +392,22 @@ if ($from_view == 'pengelompokan'):
                                            WHERE p.id = '$id_target'");
 
     $d_semua = mysqli_fetch_assoc($q_semua_detail);
-
-    if (!$d_semua) {
-        echo "<script>alert('Data pelanggaran tidak ditemukan!'); window.location='index.php?page=pelanggaran&view=semua';</script>";
-        exit;
-    }
     ?>
 
 <div class="container-fluid px-4 py-3">
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <div>
-            <h4 class="fw-bold mb-0">Detail Kejadian Pelanggaran</h4>
-            <p class="text-muted small mb-0">Rincian data transaksi kasus pelanggaran siswa</p>
-        </div>
-        <a href="index.php?page=pelanggaran&view=semua" class="btn btn-secondary btn-sm">
-            <i class="fas fa-arrow-left me-1"></i> Kembali
-        </a>
+        <h4 class="fw-bold mb-0">Detail Kejadian Pelanggaran</h4>
+        <a href="index.php?page=pelanggaran&view=semua" class="btn btn-secondary btn-sm">Kembali</a>
     </div>
-
     <div class="card shadow-sm border-0">
         <div class="card-body">
-            <table class="table table-bordered align-middle mb-0">
-                <tr>
-                    <th width="25%" class="bg-light">Tanggal Kejadian</th>
-                    <td><?= date('d/m/Y', strtotime($d_semua['tanggal'])) ?></td>
-                </tr>
-                <tr>
-                    <th class="bg-light">NIS / NISN</th>
-                    <td><?= htmlspecialchars($d_semua['nis'] ?? '-') ?></td>
-                </tr>
-                <tr>
-                    <th class="bg-light">Nama Siswa</th>
-                    <td class="fw-bold"><?= htmlspecialchars($d_semua['nama_siswa'] ?? '-') ?></td>
-                </tr>
-                <tr>
-                    <th class="bg-light">Kelas</th>
-                    <td><?= htmlspecialchars($d_semua['nama_kelas'] ?? '-') ?></td>
-                </tr>
-                <tr>
-                    <th class="bg-light">Jenis Pelanggaran</th>
-                    <td class="text-danger fw-semibold"><?= htmlspecialchars($d_semua['nama_pelanggaran'] ?? '-') ?></td>
-                </tr>
-                <tr>
-                    <th class="bg-light">Tambahan Poin</th>
-                    <td><span class="badge bg-danger">+<?= $d_semua['poin'] ?> Poin</span></td>
-                </tr>
-                <tr>
-                    <th class="bg-light">Keterangan</th>
-                    <td><?= htmlspecialchars($d_semua['keterangan'] ?: '-') ?></td>
-                </tr>
-                <tr>
-                    <th class="bg-light">Petugas Mencatat</th>
-                    <td><?= htmlspecialchars($d_semua['petugas'] ?? '-') ?></td>
-                </tr>
+            <table class="table table-bordered mb-0">
+                <tr><th>Tanggal</th><td><?= date('d/m/Y', strtotime($d_semua['tanggal'])) ?></td></tr>
+                <tr><th>NIS</th><td><?= htmlspecialchars($d_semua['nis'] ?? '-') ?></td></tr>
+                <tr><th>Nama Siswa</th><td class="fw-bold"><?= htmlspecialchars($d_semua['nama_siswa'] ?? '-') ?></td></tr>
+                <tr><th>Kelas</th><td><?= htmlspecialchars($d_semua['nama_kelas'] ?? '-') ?></td></tr>
+                <tr><th>Jenis Pelanggaran</th><td class="text-danger fw-semibold"><?= htmlspecialchars($d_semua['nama_pelanggaran'] ?? '-') ?></td></tr>
+                <tr><th>Poin</th><td>+<?= $d_semua['poin'] ?> Poin</td></tr>
             </table>
         </div>
     </div>
