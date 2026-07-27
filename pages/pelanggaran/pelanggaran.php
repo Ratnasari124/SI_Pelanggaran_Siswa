@@ -465,7 +465,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                 <th width="5%" class="text-center">No</th>
                                 <th width="12%">Tanggal</th>
                                 <th>NIS</th>
-                                <th>Nama Siswa</th>
+                                <th width="20%">Nama Siswa</th>
                                 <th>Kelas</th>
                                 <th>Jenis Pelanggaran</th>
                                 <th width="8%" class="text-center">Poin</th>
