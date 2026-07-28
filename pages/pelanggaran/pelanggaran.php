@@ -400,6 +400,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                                 <i class="fas fa-eye me-1"></i> Detail
                                             </a>
 
+                                            <!-- Tombol Hapus Seluruh Pelanggaran Siswa Ini -->
+                                            <a href="index.php?page=pelanggaran_hapus&id_siswa=<?= $row['id_siswa'] ?>&from_view=pengelompokan" class="btn btn-danger btn-sm px-2 py-1" style="font-size: 0.75rem;" title="Hapus Seluruh Pelanggaran Siswa Ini" onclick="return confirm('Apakah Anda yakin ingin menghapus seluruh riwayat pelanggaran untuk siswa <?= htmlspecialchars($row['nama_siswa']) ?>?');">
+                                                <i class="fas fa-trash me-1"></i> Hapus
+                                            </a>
+
                                             <div class="btn-group">
                                                 <button type="button" class="btn btn-secondary btn-sm dropdown-toggle px-2 py-1" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.75rem;">
                                                     <i class="fas fa-print me-1"></i> Cetak / WA
@@ -453,7 +458,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                                 FROM pelanggaran p
                                                 JOIN siswa s ON p.id_siswa = s.id
                                                 JOIN jenis_pelanggaran j ON p.id_jenis = j.id
-                                                JOIN sanksi sa ON p.id = sa.id
+                                                LEFT JOIN sanksi sa ON p.id = sa.id
                                                 LEFT JOIN kelas k ON s.id_kelas = k.id
                                                 LEFT JOIN users u ON p.id_user = u.id
                                                 $where_semua
@@ -470,8 +475,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                 <th width="3%">Kelas</th>
                                 <th width="20%">Jenis Pelanggaran</th>
                                 <th width="8%" class="text-center">Poin</th>
-                                <th width="25%" class="text-center">Sanksi</th>
-                                <th width="15%" class="text-center">Aksi</th>
+                                <th width="22%" class="text-center">Sanksi</th>
+                                <th width="17%" class="text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -486,9 +491,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                     <td class="text-center"><span class="badge bg-danger rounded-pill px-2 py-1">+<?= $row['poin'] ?></span></td>
                                     <td><small class="text-secondary"><?= htmlspecialchars($row['nama_sanksi'] ?? '-') ?></small></td>
                                     <td class="text-center">
-                                        <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-info btn-sm text-white px-3" title="Lihat Detail Kejadian">
-                                            <i class="fas fa-eye me-1"></i> Detail
-                                        </a>
+                                        <div class="d-inline-flex gap-1 justify-content-center">
+                                            <!-- Tombol Detail -->
+                                            <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-info btn-sm text-white px-2 py-1" style="font-size: 0.75rem; background-color: #0dcaf0; border: none;" title="Lihat Detail Kejadian">
+                                                <i class="fas fa-eye me-1"></i> Detail
+                                            </a>
+                                            <!-- Tombol Hapus -->
+                                            <a href="index.php?page=pelanggaran_hapus&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-danger btn-sm px-2 py-1" style="font-size: 0.75rem;" title="Hapus Data Pelanggaran Ini" onclick="return confirm('Apakah Anda yakin ingin menghapus data pelanggaran ini?');">
+                                                <i class="fas fa-trash me-1"></i> Hapus
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endwhile; else: ?>

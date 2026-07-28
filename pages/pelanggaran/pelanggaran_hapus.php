@@ -1,9 +1,12 @@
 <?php
-// Aktifkan pelaporan error PHP untuk mempermudah pelacakan jika ada kendala
+// 1. PASTIKAN SESSION AKTIF & ERROR REPORTING
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// 1. HUBUNGKAN KE DATABASE (Menggunakan Absolute Path agar anti-tersesat)
+// 2. HUBUNGKAN KE DATABASE (Menggunakan Jalur Absolut Aman)
 $path_koneksi = dirname(__DIR__, 2) . '/koneksi.php';
 if (file_exists($path_koneksi)) {
     include $path_koneksi;
@@ -11,64 +14,65 @@ if (file_exists($path_koneksi)) {
     include '../../koneksi.php';
 }
 
-// Sinkronisasi variabel koneksi database
-if (isset($conn) && !isset($koneksi)) {
-    $koneksi = $conn;
-} elseif (isset($db) && !isset($koneksi)) {
-    $koneksi = $db;
-}
+/** 
+ * @var mysqli $conn 
+ * @var mysqli $koneksi
+ * @var mysqli $db
+ */
+$koneksi = isset($conn) ? $conn : (isset($db) ? $db : $koneksi);
 
-// Validasi koneksi
-if (!isset($koneksi) || !$koneksi instanceof mysqli) {
-    die("Error: Koneksi database gagal.");
-}
-
-// 2. TANGKAP PARAMETER DARI URL
-$id_kasus = isset($_GET['id_kasus']) ? (int)$_GET['id_kasus'] : 0;
-$asal = isset($_GET['asal']) ? $_GET['asal'] : '';
-$source = isset($_GET['source']) ? $_GET['source'] : '';
-$id_kelompok = isset($_GET['id_kelompok']) ? (int)$_GET['id_kelompok'] : 0;
-
-if ($id_kasus == 0) {
-    echo "<script>alert('ID Catatan tidak valid!'); window.history.back();</script>";
-    exit;
+if (!$koneksi instanceof mysqli) {
+    die("Error: Objek koneksi database tidak valid. Periksa file koneksi.php Anda.");
 }
 
 // ========================================================
-// FIX: MENGUBAH 'DELETE FROM kasus' MENJADI 'DELETE FROM pelanggaran'
+// 3. TANGKAP ID PELANGGARAN & MENU HALAMAN ASAL (REDIRECT)
 // ========================================================
-$query_hapus = "DELETE FROM pelanggaran WHERE id = ?";
-$stmt = $koneksi->prepare($query_hapus);
+$id_hapus = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-if ($stmt) {
-    $stmt->bind_param("i", $id_kasus);
-    
-    if ($stmt->execute()) {
-        // 3. REDIRECT DINAMIS SESUAI ASAL HALAMAN PENGHAPUSAN
-        if ($asal == 'detail' && $id_kelompok > 0) {
-            // Kembali ke halaman detail rekap siswa semula
-            echo "<script>
-                    alert('Catatan pelanggaran berhasil dihapus!');
-                    window.location.href = '../../index.php?page=pelanggaran_detail&id=" . $id_kelompok . "&source=" . $source . "';
-                  </script>";
-        } elseif ($asal == 'menu_semua') {
-            // Kembali ke menu utama tab Semua Pelanggaran
-            echo "<script>
-                    alert('Catatan pelanggaran berhasil dihapus!');
-                    window.location.href = '../../index.php?page=pelanggaran&view=semua';
-                  </script>";
-        } else {
-            // Fallback default jika parameter asal tidak lengkap
-            echo "<script>
-                    alert('Catatan pelanggaran berhasil dihapus!');
-                    window.location.href = '../../index.php?page=pelanggaran';
-                  </script>";
-        }
-    } else {
-        echo "<script>alert('Gagal menghapus data dari database.'); window.history.back();</script>";
-    }
-    $stmt->close();
+// Tangkap asal tampilan menu (semua / pengelompokan)
+if (isset($_GET['from']) && !empty($_GET['from'])) {
+    $from_view = trim($_GET['from']);
+} elseif (isset($_GET['view']) && !empty($_GET['view'])) {
+    $from_view = trim($_GET['view']);
+} elseif (isset($_SESSION['last_view_pelanggaran'])) {
+    $from_view = $_SESSION['last_view_pelanggaran'];
 } else {
-    echo "Gagal mempersiapkan query hapus: " . $koneksi->error;
+    $from_view = 'semua'; // Default redirect
+}
+
+// URL Tujuan Redirect setelah proses hapus selesai
+$redirect_url = "index.php?page=pelanggaran&view=" . urlencode($from_view);
+
+// ========================================================
+// 4. PROSES HAPUS DATA DARI DATABASE
+// ========================================================
+if ($id_hapus > 0) {
+    // Gunakan Prepared Statement demi keamanan SQL Injection
+    $stmt_del = $koneksi->prepare("DELETE FROM pelanggaran WHERE id = ?");
+    $stmt_del->bind_param("i", $id_hapus);
+    
+    if ($stmt_del->execute()) {
+        $stmt_del->close();
+        echo "<script>
+                alert('Berhasil! Catatan pelanggaran telah berhasil dihapus.');
+                window.location.href = '{$redirect_url}';
+              </script>";
+        exit;
+    } else {
+        $stmt_del->close();
+        echo "<script>
+                alert('Gagal! Terjadi kesalahan saat menghapus data dari database.');
+                window.location.href = '{$redirect_url}';
+              </script>";
+        exit;
+    }
+} else {
+    // Jika ID tidak valid / 0
+    echo "<script>
+            alert('Peringatan! ID data pelanggaran tidak valid.');
+            window.location.href = '{$redirect_url}';
+          </script>";
+    exit;
 }
 ?>
