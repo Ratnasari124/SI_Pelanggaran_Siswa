@@ -6,7 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-// 2. HUBUNGKAN KE DATABASE (Menggunakan Jalur Absolut Aman)
+// 2. HUBUNGKAN KE DATABASE
 $path_koneksi = dirname(__DIR__, 2) . '/koneksi.php';
 if (file_exists($path_koneksi)) {
     include $path_koneksi;
@@ -20,94 +20,28 @@ if (file_exists($path_koneksi)) {
  * @var mysqli $koneksi
  * @var mysqli $db
  */
-
-// Menghubungkan ke variabel koneksi yang aktif di koneksi.php Anda
 $koneksi = isset($conn) ? $conn : (isset($db) ? $db : null);
 
-// Validasi mutlak untuk memastikan objek koneksi siap pakai dan dikenali VS Code
 if (!$koneksi instanceof mysqli) {
-    die("Error: Objek koneksi database tidak valid atau tidak ditemukan. Periksa file koneksi.php Anda.");
+    die("Error: Objek koneksi database tidak valid. Periksa file koneksi.php Anda.");
 }
 
 // ========================================================
-// TANGKAP MENU ASAL SECARA FLEKSIBEL (Pengelompokan / Semua)
+// TANGKAP MENU ASAL (Pengelompokan / Semua)
 // ========================================================
 if (isset($_GET['from']) && !empty($_GET['from'])) {
     $from_view = trim($_GET['from']);
 } elseif (isset($_GET['view']) && !empty($_GET['view'])) {
     $from_view = trim($_GET['view']);
-} elseif (isset($_GET['from_view']) && !empty($_GET['from_view'])) {
-    $from_view = trim($_GET['from_view']);
 } elseif (isset($_SESSION['last_view_pelanggaran'])) {
     $from_view = $_SESSION['last_view_pelanggaran'];
 } else {
-    $from_view = 'pengelompokan'; // Default menu awal
+    $from_view = 'pengelompokan';
 }
-
-// Simpan ke session untuk menjaga konteks navigasi
 $_SESSION['last_view_pelanggaran'] = $from_view;
 
 // ========================================================
-// 3. PROSES AJAX LIVE SEARCH AUTOCOMPLETE
-// ========================================================
-if (isset($_GET['action']) && $_GET['action'] == 'search_siswa') {
-    if (ob_get_length()) ob_clean(); 
-    
-    $keyword = isset($_GET['keyword']) ? trim($_GET['keyword']) : '';
-    $result = [];
-
-    if ($keyword !== '') {
-        $query = "SELECT s.id, s.nis, s.nama, k.nama_kelas 
-                  FROM siswa s 
-                  LEFT JOIN kelas k ON s.id_kelas = k.id 
-                  WHERE s.nama LIKE ? OR s.nis LIKE ? 
-                  LIMIT 15";
-                  
-        $stmt = $koneksi->prepare($query);
-        $search_param = "%" . $keyword . "%";
-        $stmt->bind_param("ss", $search_param, $search_param);
-        $stmt->execute();
-        $q_result = $stmt->get_result();
-        
-        while($r = $q_result->fetch_assoc()) {
-            $result[] = $r;
-        }
-        $stmt->close();
-    }
-    
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode($result);
-    exit;
-}
-
-if (isset($_GET['action']) && $_GET['action'] == 'search_jenis') {
-    if (ob_get_length()) ob_clean();
-
-    $keyword = isset($_GET['keyword']) ? trim($_GET['keyword']) : '';
-    $result = [];
-
-    if ($keyword !== '') {
-        $query = "SELECT id, nama_pelanggaran, poin FROM jenis_pelanggaran WHERE nama_pelanggaran LIKE ? LIMIT 15";
-        
-        $stmt = $koneksi->prepare($query);
-        $search_param = "%" . $keyword . "%";
-        $stmt->bind_param("s", $search_param);
-        $stmt->execute();
-        $q_result = $stmt->get_result();
-        
-        while($r = $q_result->fetch_assoc()) {
-            $result[] = $r;
-        }
-        $stmt->close();
-    }
-    
-    header('Content-Type: application/json; charset=utf-8');
-    echo json_encode($result);
-    exit;
-}
-
-// ========================================================
-// 4. PROSES SIMPAN DATA (POST FORM)
+// 3. PROSES SIMPAN DATA (POST FORM)
 // ========================================================
 $alert = '';
 if (isset($_POST['simpan_pelanggaran'])) {
@@ -118,7 +52,7 @@ if (isset($_POST['simpan_pelanggaran'])) {
     $keterangan    = mysqli_real_escape_string($koneksi, $_POST['keterangan']);
     $redirect_view = mysqli_real_escape_string($koneksi, $_POST['redirect_view']);
 
-    if($id_siswa > 0 && $id_jenis > 0 && !empty($tanggal)) {
+    if ($id_siswa > 0 && $id_jenis > 0 && !empty($tanggal)) {
         $stmt_ins = $koneksi->prepare("INSERT INTO pelanggaran (id_siswa, id_jenis, id_user, tanggal, keterangan) VALUES (?, ?, ?, ?, ?)");
         $stmt_ins->bind_param("iiiss", $id_siswa, $id_jenis, $id_user, $tanggal, $keterangan);
         
@@ -130,25 +64,59 @@ if (isset($_POST['simpan_pelanggaran'])) {
             exit;
         } else {
             $alert = '<div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <strong>Gagal!</strong> Terjadi kesalahan sistem saat menyimpan data ke database.
+                        <strong>Gagal!</strong> Terjadi kesalahan saat menyimpan data.
                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                       </div>';
         }
         $stmt_ins->close();
     } else {
         $alert = '<div class="alert alert-warning alert-dismissible fade show" role="alert">
-                    <strong>Peringatan!</strong> Mohon pilih Siswa dan Jenis Pelanggaran terlebih dahulu.
+                    <strong>Peringatan!</strong> Silakan pilih nama siswa dan jenis pelanggaran dari daftar yang muncul.
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                   </div>';
     }
 }
 
-// Ambil data petugas pencatat
+// ========================================================
+// 4. AMBIL DATA DARI DATABASE (PRE-LOAD DATA SISWA & JENIS)
+// ========================================================
+
+// A. Data Siswa
+$raw_siswa = [];
+$q_siswa = mysqli_query($koneksi, "SELECT s.id, s.nis, s.nama, k.nama_kelas 
+                                   FROM siswa s 
+                                   LEFT JOIN kelas k ON s.id_kelas = k.id 
+                                   ORDER BY s.nama ASC");
+if ($q_siswa) {
+    while ($row = mysqli_fetch_assoc($q_siswa)) {
+        $raw_siswa[] = [
+            'id' => $row['id'],
+            'nama' => $row['nama'],
+            'nis' => $row['nis'] ?? '-',
+            'kelas' => $row['nama_kelas'] ?? '-'
+        ];
+    }
+}
+
+// B. Data Jenis Pelanggaran
+$raw_jenis = [];
+$q_jenis = mysqli_query($koneksi, "SELECT id, nama_pelanggaran, poin FROM jenis_pelanggaran ORDER BY nama_pelanggaran ASC");
+if ($q_jenis) {
+    while ($row = mysqli_fetch_assoc($q_jenis)) {
+        $raw_jenis[] = [
+            'id' => $row['id'],
+            'nama' => $row['nama_pelanggaran'],
+            'poin' => $row['poin']
+        ];
+    }
+}
+
+// C. Data User / Petugas
 $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER BY nama_lengkap ASC");
 ?>
 
 <!-- ========================================================
-// 5. TAMPILAN ELEMEN FORM INPUT HTML
+// 5. TAMPILAN FORM HTML
 // ======================================================== -->
 <div class="container-fluid py-4">
     <?= $alert ?>
@@ -157,42 +125,49 @@ $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER 
         <div class="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold"><i class="fas fa-plus-circle text-warning me-2"></i>Tambah Catatan Pelanggaran Siswa</h5>
             
-            <!-- TOMBOL BATAL / KEMBALI HEADER -->
             <a href="index.php?page=pelanggaran&view=<?= urlencode($from_view) ?>" class="btn btn-secondary btn-sm shadow-2xs">
                 <i class="fas fa-arrow-left me-1"></i> Kembali ke Menu <?= $from_view == 'pengelompokan' ? 'Pengelompokan' : 'Semua Pelanggaran' ?>
             </a>
         </div>
         
         <div class="card-body p-4">
-            <form method="POST" action="" autocomplete="off">
+            <form method="POST" action="" autocomplete="off" id="form_pelanggaran">
                 <input type="hidden" name="redirect_view" value="<?= htmlspecialchars($from_view) ?>">
 
                 <div class="row">
                     <div class="col-md-6 mb-3">
+                        <!-- Input Cari Siswa -->
                         <div class="position-relative mb-3">
-                            <label class="form-label fw-bold small text-secondary">Cari Nama / NIS Siswa</label>
+                            <label class="form-label fw-bold small text-secondary">Cari Nama / NIS Siswa <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text bg-light"><i class="fas fa-user"></i></span>
-                                <input type="text" id="input_siswa_search" class="form-control" placeholder="Ketik nama depan/kata kunci siswa..." required>
+                                <input type="text" id="input_siswa_search" class="form-control" placeholder="Ketik 1 huruf / kata / NIS siswa..." required>
                             </div>
                             <input type="hidden" name="id_siswa" id="hidden_id_siswa" required>
-                            <div id="box_suggest_siswa" class="autocomplete-suggestions d-none card shadow-sm position-absolute w-100 bg-white border z-index-3"></div>
+                            
+                            <!-- Box Dropdown Hasil Pencarian -->
+                            <div id="box_suggest_siswa" class="autocomplete-suggestions d-none card shadow position-absolute w-100 bg-white border"></div>
+                            <small class="text-muted" style="font-size: 0.78rem;">* Langsung munculkan daftar siswa begitu mengetik huruf pertama.</small>
                         </div>
 
+                        <!-- Input Cari Jenis Pelanggaran -->
                         <div class="position-relative mb-3">
-                            <label class="form-label fw-bold small text-secondary">Cari Jenis Pelanggaran</label>
+                            <label class="form-label fw-bold small text-secondary">Cari Jenis Pelanggaran <span class="text-danger">*</span></label>
                             <div class="input-group">
                                 <span class="input-group-text bg-light"><i class="fas fa-gavel"></i></span>
-                                <input type="text" id="input_jenis_search" class="form-control" placeholder="Ketik nama pelanggaran yang bersangkutan..." required>
+                                <input type="text" id="input_jenis_search" class="form-control" placeholder="Ketik 1 huruf / kata pelanggaran..." required>
                             </div>
                             <input type="hidden" name="id_jenis" id="hidden_id_jenis" required>
-                            <div id="box_suggest_jenis" class="autocomplete-suggestions d-none card shadow-sm position-absolute w-100 bg-white border z-index-3"></div>
+                            
+                            <!-- Box Dropdown Hasil Pencarian -->
+                            <div id="box_suggest_jenis" class="autocomplete-suggestions d-none card shadow position-absolute w-100 bg-white border"></div>
+                            <small class="text-muted" style="font-size: 0.78rem;">* Contoh: Ketik "t", "terlambat", "sepatu", dll.</small>
                         </div>
                     </div>
 
                     <div class="col-md-6 mb-3">
                         <div class="mb-3">
-                            <label class="form-label fw-bold small text-secondary">Tanggal Kejadian</label>
+                            <label class="form-label fw-bold small text-secondary">Tanggal Kejadian <span class="text-danger">*</span></label>
                             <input type="date" name="tanggal" class="form-control" value="<?= date('Y-m-d') ?>" required>
                         </div>
 
@@ -219,7 +194,6 @@ $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER 
                 <hr class="text-muted">
                 
                 <div class="d-flex justify-content-end align-items-center gap-2">
-                    <!-- TOMBOL BATAL FOOTER -->
                     <a href="index.php?page=pelanggaran&view=<?= urlencode($from_view) ?>" class="btn btn-secondary px-4">
                         <i class="fas fa-times me-1"></i> Batal
                     </a>
@@ -236,122 +210,185 @@ $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER 
 </div>
 
 <!-- ========================================================
-// 6. SCRIPT JAVASCRIPT AJAX LIVE SEARCH
+// 6. SCRIPT JAVASCRIPT INSTAN SEARCH (NO AJAX - ZERO DELAY)
 // ======================================================== -->
 <script>
-document.addEventListener("DOMContentLoaded", function () {
-    const currentUrlParams = new URLSearchParams(window.location.search);
-    const currentPage = currentUrlParams.get('page') || 'pelanggaran_tambah';
+// Transfer data PHP ke variabel JavaScript
+const LIST_SISWA = <?= json_encode($raw_siswa) ?>;
+const LIST_JENIS = <?= json_encode($raw_jenis) ?>;
 
-    // --- FITUR PENCARIAN SISWA ---
+document.addEventListener("DOMContentLoaded", function () {
+
+    // Helper Highlight kata yang cocok
+    function highlightText(text, keyword) {
+        if (!text) return '';
+        if (!keyword) return text;
+        const words = keyword.trim().split(/\s+/).filter(w => w.length > 0);
+        if (words.length === 0) return text;
+        
+        const pattern = words.map(w => w.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')).join('|');
+        const reg = new RegExp(`(${pattern})`, 'gi');
+        return text.replace(reg, '<mark class="p-0 bg-warning text-dark">$1</mark>');
+    }
+
+    // ==========================================
+    // 1. OTOMATISASI PENCARIAN SISWA
+    // ==========================================
     const inputSiswa = document.getElementById('input_siswa_search');
     const boxSiswa = document.getElementById('box_suggest_siswa');
     const hiddenSiswa = document.getElementById('hidden_id_siswa');
-    
+
+    function renderSiswa(query) {
+        const val = query.trim().toLowerCase();
+        boxSiswa.innerHTML = '';
+
+        if (val.length < 1) {
+            boxSiswa.classList.add('d-none');
+            hiddenSiswa.value = '';
+            return;
+        }
+
+        // Filter data siswa secara cepat
+        const filtered = LIST_SISWA.filter(item => {
+            return item.nama.toLowerCase().includes(val) || 
+                   item.nis.toLowerCase().includes(val) || 
+                   item.kelas.toLowerCase().includes(val);
+        }).slice(0, 15); // Ambil maksimal 15 teratas
+
+        if (filtered.length > 0) {
+            boxSiswa.classList.remove('d-none');
+            filtered.forEach(item => {
+                let div = document.createElement('div');
+                div.className = 'p-2 border-bottom suggest-item d-flex justify-content-between align-items-center';
+                
+                let namaFormatted = highlightText(item.nama, query);
+                let nisFormatted  = highlightText(item.nis, query);
+
+                div.innerHTML = `<div><strong>${namaFormatted}</strong> <br><small class="text-muted">NIS: ${nisFormatted}</small></div> 
+                                 <span class="badge bg-secondary small">${item.kelas}</span>`;
+                
+                div.onclick = function() {
+                    inputSiswa.value = item.nama;
+                    hiddenSiswa.value = item.id;
+                    boxSiswa.classList.add('d-none');
+                };
+                boxSiswa.appendChild(div);
+            });
+        } else {
+            boxSiswa.classList.remove('d-none');
+            boxSiswa.innerHTML = '<div class="p-2 text-muted small text-center">Siswa tidak ditemukan</div>';
+        }
+    }
+
     if (inputSiswa) {
         inputSiswa.addEventListener('input', function() {
-            let val = this.value.trim();
-            if(val.length < 1) { 
-                boxSiswa.classList.add('d-none'); 
-                hiddenSiswa.value = ''; 
-                return; 
+            hiddenSiswa.value = '';
+            renderSiswa(this.value);
+        });
+        inputSiswa.addEventListener('focus', function() {
+            if (this.value.trim().length > 0 && !hiddenSiswa.value) {
+                renderSiswa(this.value);
             }
-
-            fetch(`index.php?page=${currentPage}&action=search_siswa&keyword=${encodeURIComponent(val)}`)
-                .then(res => {
-                    if (!res.ok) throw new Error('Response jaringan bermasalah');
-                    return res.json();
-                })
-                .then(data => {
-                    boxSiswa.innerHTML = '';
-                    if(data && data.length > 0) {
-                        boxSiswa.classList.remove('d-none');
-                        data.forEach(item => {
-                            let div = document.createElement('div');
-                            div.className = 'p-2 border-bottom suggest-item style-suggest d-flex justify-content-between align-items-center';
-                            div.innerHTML = `<div><strong>${item.nama}</strong> <br><small class="text-muted">NIS: ${item.nis}</small></div> 
-                                             <span class="badge bg-secondary small">${item.nama_kelas ?? '-'}</span>`;
-                            div.onclick = function() {
-                                inputSiswa.value = item.nama;
-                                hiddenSiswa.value = item.id;
-                                boxSiswa.classList.add('d-none');
-                            };
-                            boxSiswa.appendChild(div);
-                        });
-                    } else {
-                        boxSiswa.classList.remove('d-none');
-                        boxSiswa.innerHTML = '<div class="p-2 text-muted small text-center">Siswa tidak ditemukan</div>';
-                    }
-                })
-                .catch(err => console.error("Error fetch siswa:", err));
         });
     }
 
-    // --- FITUR PENCARIAN JENIS PELANGGARAN ---
+    // ==========================================
+    // 2. OTOMATISASI PENCARIAN JENIS PELANGGARAN
+    // ==========================================
     const inputJenis = document.getElementById('input_jenis_search');
     const boxJenis = document.getElementById('box_suggest_jenis');
     const hiddenJenis = document.getElementById('hidden_id_jenis');
 
+    function renderJenis(query) {
+        const val = query.trim().toLowerCase();
+        boxJenis.innerHTML = '';
+
+        if (val.length < 1) {
+            boxJenis.classList.add('d-none');
+            hiddenJenis.value = '';
+            return;
+        }
+
+        // Filter data pelanggaran secara cepat
+        const filtered = LIST_JENIS.filter(item => {
+            return item.nama.toLowerCase().includes(val);
+        }).slice(0, 15);
+
+        if (filtered.length > 0) {
+            boxJenis.classList.remove('d-none');
+            filtered.forEach(item => {
+                let div = document.createElement('div');
+                div.className = 'p-2 border-bottom suggest-item d-flex justify-content-between align-items-center';
+                
+                let jenisFormatted = highlightText(item.nama, query);
+
+                div.innerHTML = `<span style="max-width:75%; word-break:break-word;">${jenisFormatted}</span> 
+                                 <span class="badge bg-danger">+${item.poin} Poin</span>`;
+                
+                div.onclick = function() {
+                    inputJenis.value = item.nama + " (+" + item.poin + " Poin)";
+                    hiddenJenis.value = item.id;
+                    boxJenis.classList.add('d-none');
+                };
+                boxJenis.appendChild(div);
+            });
+        } else {
+            boxJenis.classList.remove('d-none');
+            boxJenis.innerHTML = '<div class="p-2 text-muted small text-center">Jenis pelanggaran tidak ditemukan</div>';
+        }
+    }
+
     if (inputJenis) {
         inputJenis.addEventListener('input', function() {
-            let val = this.value.trim();
-            if(val.length < 1) { 
-                boxJenis.classList.add('d-none'); 
-                hiddenJenis.value = ''; 
-                return; 
+            hiddenJenis.value = '';
+            renderJenis(this.value);
+        });
+        inputJenis.addEventListener('focus', function() {
+            if (this.value.trim().length > 0 && !hiddenJenis.value) {
+                renderJenis(this.value);
             }
-
-            fetch(`index.php?page=${currentPage}&action=search_jenis&keyword=${encodeURIComponent(val)}`)
-                .then(res => {
-                    if (!res.ok) throw new Error('Response jaringan bermasalah');
-                    return res.json();
-                })
-                .then(data => {
-                    boxJenis.innerHTML = '';
-                    if(data && data.length > 0) {
-                        boxJenis.classList.remove('d-none');
-                        data.forEach(item => {
-                            let div = document.createElement('div');
-                            div.className = 'p-2 border-bottom suggest-item style-suggest d-flex justify-content-between align-items-center';
-                            div.innerHTML = `<span style="max-width:75%; display:inline-block; word-break:break-word;">${item.nama_pelanggaran}</span> 
-                                             <span class="badge bg-danger">+${item.poin} Poin</span>`;
-                            div.onclick = function() {
-                                inputJenis.value = item.nama_pelanggaran;
-                                hiddenJenis.value = item.id;
-                                boxJenis.classList.add('d-none');
-                            };
-                            boxJenis.appendChild(div);
-                        });
-                    } else {
-                        boxJenis.classList.remove('d-none');
-                        boxJenis.innerHTML = '<div class="p-2 text-muted small text-center">Jenis pelanggaran tidak ditemukan</div>';
-                    }
-                })
-                .catch(err => console.error("Error fetch jenis:", err));
         });
     }
 
+    // Sembunyikan rekomendasi jika mengklik area luar
     document.addEventListener('click', function(e) {
         if(e.target !== inputSiswa && boxSiswa) boxSiswa.classList.add('d-none');
         if(e.target !== inputJenis && boxJenis) boxJenis.classList.add('d-none');
     });
 
+    // Reset Form Listener
     const btnReset = document.getElementById('btn_reset_form');
     if(btnReset){
         btnReset.addEventListener('click', function(){
             hiddenSiswa.value = '';
             hiddenJenis.value = '';
-            boxSiswa.classList.add('d-none');
-            boxJenis.classList.add('d-none');
+            if(boxSiswa) boxSiswa.classList.add('d-none');
+            if(boxJenis) boxJenis.classList.add('d-none');
         });
     }
 });
 </script>
 
 <style>
-    .autocomplete-suggestions { max-height: 230px; overflow-y: auto; z-index: 9999; border-radius: 6px; margin-top: 5px; }
-    .suggest-item { cursor: pointer; transition: background 0.2s; font-size: 0.88rem; color: #333; }
-    .suggest-item:hover { background-color: #f8f9fa; color: #000; }
-    .style-suggest { padding: 10px 15px !important; }
-    .shadow-2xs { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+    .autocomplete-suggestions { 
+        max-height: 250px; 
+        overflow-y: auto; 
+        z-index: 9999; 
+        border-radius: 6px; 
+        margin-top: 2px; 
+    }
+    .suggest-item { 
+        cursor: pointer; 
+        transition: background 0.2s; 
+        font-size: 0.88rem; 
+        color: #aa3030; 
+        padding: 10px 15px !important;
+    }
+    .suggest-item:hover { 
+        background-color: #ffbb00; 
+        color: #fffffd; 
+    }
+    .shadow-2xs { 
+        box-shadow: 0 1px 2px 0 rgba(255, 230, 1, 0.97); 
+    }
 </style>

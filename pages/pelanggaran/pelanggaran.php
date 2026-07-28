@@ -449,10 +449,11 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                 }
 
                 $q_semua = mysqli_query($conn, "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, s.nis, s.nama AS nama_siswa, 
-                                                       k.nama_kelas, j.nama_pelanggaran, j.poin, u.nama_lengkap AS sanksi
+                                                       k.nama_kelas, j.nama_pelanggaran, j.poin, sa.nama_sanksi
                                                 FROM pelanggaran p
                                                 JOIN siswa s ON p.id_siswa = s.id
                                                 JOIN jenis_pelanggaran j ON p.id_jenis = j.id
+                                                JOIN sanksi sa ON p.id = sa.id
                                                 LEFT JOIN kelas k ON s.id_kelas = k.id
                                                 LEFT JOIN users u ON p.id_user = u.id
                                                 $where_semua
@@ -463,13 +464,13 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                         <thead class="table-dark">
                             <tr>
                                 <th width="5%" class="text-center">No</th>
-                                <th width="12%">Tanggal</th>
-                                <th>NIS</th>
-                                <th width="20%">Nama Siswa</th>
-                                <th>Kelas</th>
-                                <th>Jenis Pelanggaran</th>
+                                <th width="5%">Tanggal</th>
+                                <th width="5%">NIS</th>
+                                <th width="15%">Nama Siswa</th>
+                                <th width="3%">Kelas</th>
+                                <th width="20%">Jenis Pelanggaran</th>
                                 <th width="8%" class="text-center">Poin</th>
-                                <th width="10%" class="text-center">Petugas</th>
+                                <th width="25%" class="text-center">Sanksi</th>
                                 <th width="15%" class="text-center">Aksi</th>
                             </tr>
                         </thead>
@@ -483,7 +484,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                     <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($row['nama_kelas'] ?? '-') ?></span></td>
                                     <td class="fw-semibold text-danger"><?= htmlspecialchars($row['nama_pelanggaran']) ?></td>
                                     <td class="text-center"><span class="badge bg-danger rounded-pill px-2 py-1">+<?= $row['poin'] ?></span></td>
-                                    <td><small class="text-secondary"><?= htmlspecialchars($row['sanksi'] ?? '-') ?></small></td>
+                                    <td><small class="text-secondary"><?= htmlspecialchars($row['nama_sanksi'] ?? '-') ?></small></td>
                                     <td class="text-center">
                                         <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-info btn-sm text-white px-3" title="Lihat Detail Kejadian">
                                             <i class="fas fa-eye me-1"></i> Detail
