@@ -74,7 +74,7 @@ if (isset($_POST['update_pelanggaran'])) {
                 <label for="poin" class="form-label fw-bold">Klasifikasi Bobot Poin</label>
                 <select name="poin" id="poin" class="form-select" required>
                     <option value="">-- Pilih Tingkat Sanksi Pelanggaran --</option>
-                    <option value="0" <?= ($data['poin'] == 0) ? 'selected' : ''; ?>>Tidak Ada Poin (0 Poin)</option>
+                    <option value="0" <?= ($data['poin'] == 0) ? 'selected' : ''; ?>>- (0 Poin)</option>
                     <option value="10" <?= ($data['poin'] == 10) ? 'selected' : ''; ?>>Ringan (10 Poin)</option>
                     <option value="40" <?= ($data['poin'] == 40) ? 'selected' : ''; ?>>Sedang (40 Poin)</option>
                     <option value="75" <?= ($data['poin'] == 75) ? 'selected' : ''; ?>>Berat (75 Poin)</option>
