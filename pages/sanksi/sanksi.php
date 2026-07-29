@@ -70,11 +70,11 @@ $query = mysqli_query($conn, $sql);
         <thead class="table-dark">
             <tr>
                 <th width="5%" class="text-center">ID</th>
-                <th width="15%" class="text-center">Min Poin</th>
-                <th width="15%" class="text-center">Max Poin</th>
-                <th>Nama Sanksi</th>
-                <th width="20%" class="text-center">Kategori Badge</th>
-                <th width="15%" class="text-center">Aksi</th>
+                <th width="3%" class="text-center">Min Poin</th>
+                <th width="3%" class="text-center">Max Poin</th>
+                <th width="15%" class="text-center">Nama Sanksi</th>
+                <th width="8%" class="text-center">Kategori Badge</th>
+                <th width="5%" class="text-center">Aksi</th>
             </tr>
         </thead>
         <tbody>
