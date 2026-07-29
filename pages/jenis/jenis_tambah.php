@@ -14,9 +14,14 @@ $pesan = "";
 // 2. PROSES JIKA TOMBOL SIMPAN DIKLIK
 if (isset($_POST['simpan_pelanggaran'])) {
     $nama_pelanggaran = mysqli_real_escape_string($conn, $_POST['nama_pelanggaran']);
-    $poin             = intval($_POST['poin']);
+    
+    // Pastikan menangkap nilai poin jika diset (termasuk nilai 0)
+    $poin_input       = isset($_POST['poin']) ? $_POST['poin'] : '';
+    $poin             = intval($poin_input);
 
-    if (!empty($nama_pelanggaran) && $poin > 0) {
+    // DIBERBAIKI: Mengubah ($poin > 0) menjadi ($poin >= 0) dan cek agar $poin_input tidak kosong/string hampa
+    if (!empty($nama_pelanggaran) && $poin_input !== '' && $poin >= 0) {
+        
         // Query insert data ke tabel jenis_pelanggaran
         $sql = "INSERT INTO jenis_pelanggaran (nama_pelanggaran, poin) VALUES ('$nama_pelanggaran', '$poin')";
         
@@ -45,7 +50,6 @@ if (isset($_POST['simpan_pelanggaran'])) {
 
         <form method="POST" action="">
             
-
             <div class="mb-3">
                 <label for="nama_pelanggaran" class="form-label fw-bold">Nama / Detail Pelanggaran</label>
                 <textarea class="form-control" id="nama_pelanggaran" name="nama_pelanggaran" rows="4" placeholder="Contoh: Berambut Gondrong, dicat dan potongan tidak rapi..." required></textarea>
@@ -55,6 +59,8 @@ if (isset($_POST['simpan_pelanggaran'])) {
                 <label for="poin" class="form-label fw-bold">Klasifikasi Bobot Poin</label>
                 <select name="poin" id="poin" class="form-select" required>
                     <option value="">-- Pilih Tingkat Sanksi Pelanggaran --</option>
+                    <!-- Tambahan Opsi Tanpa Poin -->
+                    <option value="0">Tanpa Poin / Peringatan Lisan (0 Poin)</option>
                     <option value="10">Ringan (10 Poin)</option>
                     <option value="40">Sedang (40 Poin)</option>
                     <option value="75">Berat (75 Poin)</option>

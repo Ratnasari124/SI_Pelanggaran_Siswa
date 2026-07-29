@@ -11,7 +11,7 @@ $pesan = "";
 if (isset($_GET['id'])) {
     $id = intval($_GET['id']);
     
-    // Menggunakan nama tabel database Anda yang benar: 'data_pelanggaran'
+    // Menggunakan nama tabel database Anda yang benar: 'jenis_pelanggaran'
     $sql_ambil = "SELECT * FROM jenis_pelanggaran WHERE id = $id";
     $query_ambil = mysqli_query($conn, $sql_ambil);
     $data = mysqli_fetch_assoc($query_ambil);
@@ -31,9 +31,14 @@ if (isset($_GET['id'])) {
 // 2. PROSES LOGIKA KETIKA TOMBOL SIMPAN/PERBAHARUI DIKLIK
 if (isset($_POST['update_pelanggaran'])) {
     $nama_pelanggaran = mysqli_real_escape_string($conn, $_POST['nama_pelanggaran']);
-    $poin             = intval($_POST['poin']);
+    
+    // Menangkap nilai poin (termasuk angka 0)
+    $poin_input       = isset($_POST['poin']) ? $_POST['poin'] : '';
+    $poin             = intval($poin_input);
 
-    if (!empty($nama_pelanggaran) && $poin > 0) {
+    // DIBERBAIKI: Mengubah ($poin > 0) menjadi ($poin >= 0) dan memastikan $poin_input tidak kosong
+    if (!empty($nama_pelanggaran) && $poin_input !== '' && $poin >= 0) {
+        
         // Query UPDATE ke tabel jenis_pelanggaran
         $sql_update = "UPDATE jenis_pelanggaran SET 
                         nama_pelanggaran = '$nama_pelanggaran', 
@@ -74,6 +79,8 @@ if (isset($_POST['update_pelanggaran'])) {
                 <label for="poin" class="form-label fw-bold">Klasifikasi Bobot Poin</label>
                 <select name="poin" id="poin" class="form-select" required>
                     <option value="">-- Pilih Tingkat Sanksi Pelanggaran --</option>
+                    <!-- Tambahan Opsi Tanpa Poin + Pengecekan Ternary Selected -->
+                    <option value="0" <?= ($data['poin'] == 0) ? 'selected' : ''; ?>>Tanpa Poin / Peringatan Lisan (0 Poin)</option>
                     <option value="10" <?= ($data['poin'] == 10) ? 'selected' : ''; ?>>Ringan (10 Poin)</option>
                     <option value="40" <?= ($data['poin'] == 40) ? 'selected' : ''; ?>>Sedang (40 Poin)</option>
                     <option value="75" <?= ($data['poin'] == 75) ? 'selected' : ''; ?>>Berat (75 Poin)</option>
