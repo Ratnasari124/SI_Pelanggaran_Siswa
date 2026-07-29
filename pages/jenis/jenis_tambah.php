@@ -55,7 +55,6 @@ if (isset($_POST['simpan_pelanggaran'])) {
                 <label for="poin" class="form-label fw-bold">Klasifikasi Bobot Poin</label>
                 <select name="poin" id="poin" class="form-select" required>
                     <option value="">-- Pilih Tingkat Sanksi Pelanggaran --</option>
-                    <option value="0">- (0 Poin)</option>
                     <option value="10">Ringan (10 Poin)</option>
                     <option value="40">Sedang (40 Poin)</option>
                     <option value="75">Berat (75 Poin)</option>
