@@ -24,6 +24,19 @@ $tgl_mulai       = isset($_GET['tgl_mulai']) ? mysqli_real_escape_string($conn, 
 $tgl_selesai     = isset($_GET['tgl_selesai']) ? mysqli_real_escape_string($conn, trim($_GET['tgl_selesai'])) : '';
 $id_kelas_filter = isset($_GET['kelas']) ? mysqli_real_escape_string($conn, trim($_GET['kelas'])) : '';
 
+// Parameter Paginasi
+$limit = 10; // Jumlah data per halaman
+$page_no = isset($_GET['p']) && is_numeric($_GET['p']) ? (int)$_GET['p'] : 1;
+if ($page_no < 1) { $page_no = 1; }
+$offset = ($page_no - 1) * $limit;
+
+// Helper Function untuk membuat URL Pagination dengan mempertahankan query string
+function get_pagination_url($page_num) {
+    $params = $_GET;
+    $params['p'] = $page_num;
+    return 'index.php?' . http_build_query($params);
+}
+
 // ==========================================
 // 2. PROSES EXPORT EXCEL (SEMUA PELANGGARAN)
 // ==========================================
@@ -37,7 +50,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'export_excel_semua') {
     if (!empty($id_kelas_filter)) {
         $where .= " AND s.id_kelas = '$id_kelas_filter'";
     }
-    // Filter Rentang Tanggal
     if (!empty($tgl_mulai) && !empty($tgl_selesai)) {
         $where .= " AND p.tanggal BETWEEN '$tgl_mulai' AND '$tgl_selesai'";
     } elseif (!empty($tgl_mulai)) {
@@ -99,7 +111,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
     if (!empty($id_kelas_filter)) {
         $where .= " AND s.id_kelas = '$id_kelas_filter'";
     }
-    // Filter Rentang Tanggal
     if (!empty($tgl_mulai) && !empty($tgl_selesai)) {
         $where .= " AND p.tanggal BETWEEN '$tgl_mulai' AND '$tgl_selesai'";
     } elseif (!empty($tgl_mulai)) {
@@ -329,6 +340,15 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                     $where_kelompok .= " AND (s.nama LIKE '%$search%' OR s.nis LIKE '%$search%')";
                 }
 
+                // Hitung Total Data untuk Paginasi Mode Pengelompokan
+                $q_total = mysqli_query($conn, "SELECT COUNT(DISTINCT s.id) AS total 
+                                                 FROM siswa s 
+                                                 JOIN pelanggaran p ON p.id_siswa = s.id 
+                                                 $where_kelompok");
+                $total_records = mysqli_fetch_assoc($q_total)['total'] ?? 0;
+                $total_pages = ceil($total_records / $limit);
+
+                // Query Data dengan LIMIT & OFFSET
                 $q_kelompok = mysqli_query($conn, "SELECT 
                                                         s.id AS id_siswa, 
                                                         s.nis, 
@@ -344,7 +364,8 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                                 LEFT JOIN kelas k ON s.id_kelas = k.id
                                                 $where_kelompok
                                                 GROUP BY s.id
-                                                ORDER BY total_poin DESC");
+                                                ORDER BY total_poin DESC
+                                                LIMIT $limit OFFSET $offset");
                 ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
@@ -360,7 +381,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if ($q_kelompok && mysqli_num_rows($q_kelompok) > 0): $no = 1; while($row = mysqli_fetch_assoc($q_kelompok)): ?>
+                            <?php if ($q_kelompok && mysqli_num_rows($q_kelompok) > 0): $no = $offset + 1; while($row = mysqli_fetch_assoc($q_kelompok)): ?>
                                 <?php 
                                     $no_wa = formatNoWA($row['no_hp'] ?? '');
                                     $has_wa = !empty($no_wa);
@@ -439,6 +460,30 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                     </table>
                 </div>
 
+                <!-- TOMBOL PAGINASI (PENGELOMPOKAN) -->
+                <?php if ($total_pages > 1): ?>
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                        <small class="text-muted">
+                            Menampilkan <?= min($offset + 1, $total_records) ?> - <?= min($offset + $limit, $total_records) ?> dari <strong><?= $total_records ?></strong> data siswa
+                        </small>
+                        <nav aria-label="Navigasi Halaman">
+                            <ul class="pagination pagination-sm mb-0">
+                                <li class="page-item <?= ($page_no <= 1) ? 'disabled' : '' ?>">
+                                    <a class="page-item page-link" href="<?= get_pagination_url($page_no - 1) ?>">Sebelumnya</a>
+                                </li>
+                                <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                                    <li class="page-item <?= ($page_no == $i) ? 'active' : '' ?>">
+                                        <a class="page-link" href="<?= get_pagination_url($i) ?>"><?= $i ?></a>
+                                    </li>
+                                <?php endfor; ?>
+                                <li class="page-item <?= ($page_no >= $total_pages) ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="<?= get_pagination_url($page_no + 1) ?>">Selanjutnya</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                <?php endif; ?>
+
             <?php else: ?>
                 <?php
                 $where_semua = "WHERE 1=1";
@@ -453,6 +498,16 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                     $where_semua .= " AND p.tanggal <= '$tgl_selesai'";
                 }
 
+                // Hitung Total Data untuk Paginasi Mode Semua
+                $q_total_semua = mysqli_query($conn, "SELECT COUNT(p.id) AS total 
+                                                       FROM pelanggaran p
+                                                       JOIN siswa s ON p.id_siswa = s.id
+                                                       JOIN jenis_pelanggaran j ON p.id_jenis = j.id
+                                                       $where_semua");
+                $total_records = mysqli_fetch_assoc($q_total_semua)['total'] ?? 0;
+                $total_pages = ceil($total_records / $limit);
+
+                // Query Data Semua Pelanggaran dengan LIMIT & OFFSET
                 $q_semua = mysqli_query($conn, "SELECT p.id AS id_kasus, p.tanggal, p.keterangan, s.nis, s.nama AS nama_siswa, 
                                                        k.nama_kelas, j.nama_pelanggaran, j.poin, sa.nama_sanksi
                                                 FROM pelanggaran p
@@ -462,25 +517,26 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                                 LEFT JOIN kelas k ON s.id_kelas = k.id
                                                 LEFT JOIN users u ON p.id_user = u.id
                                                 $where_semua
-                                                ORDER BY p.tanggal DESC, p.id DESC");
+                                                ORDER BY p.tanggal DESC, p.id DESC
+                                                LIMIT $limit OFFSET $offset");
                 ?>
                 <div class="table-responsive">
                     <table class="table table-hover align-middle mb-0" style="font-size: 0.875rem;">
                         <thead class="table-dark">
                             <tr>
                                 <th width="5%" class="text-center">No</th>
-                                <th width="5%">Tanggal</th>
-                                <th width="5%">NIS</th>
-                                <th width="15%">Nama Siswa</th>
-                                <th width="3%">Kelas</th>
+                                <th width="10%">Tanggal</th>
+                                <th width="10%">NIS</th>
+                                <th width="18%">Nama Siswa</th>
+                                <th width="8%">Kelas</th>
                                 <th width="20%">Jenis Pelanggaran</th>
                                 <th width="8%" class="text-center">Poin</th>
-                                <th width="22%" class="text-center">Sanksi</th>
-                                <th width="17%" class="text-center">Aksi</th>
+                                <th width="13%" class="text-center">Sanksi</th>
+                                <th width="8%" class="text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if ($q_semua && mysqli_num_rows($q_semua) > 0): $no = 1; while($row = mysqli_fetch_assoc($q_semua)): ?>
+                            <?php if ($q_semua && mysqli_num_rows($q_semua) > 0): $no = $offset + 1; while($row = mysqli_fetch_assoc($q_semua)): ?>
                                 <tr>
                                     <td class="text-center"><?= $no++ ?></td>
                                     <td><?= date('d/m/Y', strtotime($row['tanggal'])) ?></td>
@@ -488,19 +544,12 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                     <td class="fw-bold text-dark"><?= htmlspecialchars($row['nama_siswa']) ?></td>
                                     <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($row['nama_kelas'] ?? '-') ?></span></td>
                                     <td class="fw-semibold text-danger"><?= htmlspecialchars($row['nama_pelanggaran']) ?></td>
-                                    <td class="text-center"><span class="badge bg-danger rounded-pill px-2 py-1">+<?= $row['poin'] ?></span></td>
-                                    <td><small class="text-secondary"><?= htmlspecialchars($row['nama_sanksi'] ?? '-') ?></small></td>
+                                    <td class="text-center font-monospace text-danger font-bold">+<?= $row['poin'] ?></td>
+                                    <td class="text-center"><?= htmlspecialchars($row['nama_sanksi'] ?? '-') ?></td>
                                     <td class="text-center">
-                                        <div class="d-inline-flex gap-1 justify-content-center">
-                                            <!-- Tombol Detail -->
-                                            <a href="index.php?page=pelanggaran_detail&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-info btn-sm text-white px-2 py-1" style="font-size: 0.75rem; background-color: #0dcaf0; border: none;" title="Lihat Detail Kejadian">
-                                                <i class="fas fa-eye me-1"></i> Detail
-                                            </a>
-                                            <!-- Tombol Hapus -->
-                                            <a href="index.php?page=pelanggaran_hapus&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-danger btn-sm px-2 py-1" style="font-size: 0.75rem;" title="Hapus Data Pelanggaran Ini" onclick="return confirm('Apakah Anda yakin ingin menghapus data pelanggaran ini?');">
-                                                <i class="fas fa-trash me-1"></i> Hapus
-                                            </a>
-                                        </div>
+                                        <a href="index.php?page=pelanggaran_hapus&id=<?= $row['id_kasus'] ?>&from_view=semua" class="btn btn-danger btn-sm px-2 py-1" style="font-size:0.75rem;" onclick="return confirm('Apakah Anda yakin ingin menghapus data pelanggaran ini?');">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
                                     </td>
                                 </tr>
                             <?php endwhile; else: ?>
@@ -509,8 +558,32 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                         </tbody>
                     </table>
                 </div>
-            <?php endif; ?>
 
+                <!-- TOMBOL PAGINASI (SEMUA PELANGGARAN) -->
+                <?php if ($total_pages > 1): ?>
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
+                        <small class="text-muted">
+                            Menampilkan <?= min($offset + 1, $total_records) ?> - <?= min($offset + $limit, $total_records) ?> dari <strong><?= $total_records ?></strong> data pelanggaran
+                        </small>
+                        <nav aria-label="Navigasi Halaman">
+                            <ul class="pagination pagination-sm mb-0">
+                                <li class="page-item <?= ($page_no <= 1) ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="<?= get_pagination_url($page_no - 1) ?>">Sebelumnya</a>
+                                </li>
+                                <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                                    <li class="page-item <?= ($page_no == $i) ? 'active' : '' ?>">
+                                        <a class="page-link" href="<?= get_pagination_url($i) ?>"><?= $i ?></a>
+                                    </li>
+                                <?php endfor; ?>
+                                <li class="page-item <?= ($page_no >= $total_pages) ? 'disabled' : '' ?>">
+                                    <a class="page-link" href="<?= get_pagination_url($page_no + 1) ?>">Selanjutnya</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                <?php endif; ?>
+
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 
