@@ -1,14 +1,14 @@
 <?php
 /** @var mysqli $conn */
 
-// 1. PERBAIKAN: Ambil nilai filter menggunakan POST agar tidak merusak routing URL template
-$cari = isset($_POST['cari']) ? mysqli_real_escape_string($conn, $_POST['cari']) : '';
-$filter_poin = isset($_POST['filter_poin']) ? mysqli_real_escape_string($conn, $_POST['filter_poin']) : '';
+// 1. Ambil nilai filter (Pencarian & Filter Poin)
+$cari = isset($_POST['cari']) ? mysqli_real_escape_string($conn, $_POST['cari']) : (isset($_GET['cari']) ? mysqli_real_escape_string($conn, $_GET['cari']) : '');
+$filter_poin = isset($_POST['filter_poin']) ? mysqli_real_escape_string($conn, $_POST['filter_poin']) : (isset($_GET['filter_poin']) ? mysqli_real_escape_string($conn, $_GET['filter_poin']) : '');
 
-// 2. AMBIL DAFTAR PENGELOMPOKAN ANGKA POIN SECARA UNIK (DISTINCT) DARI DATABASE
+// 2. Ambil daftar pengelompokan angka poin secara unik untuk dropdown
 $query_angka_poin = mysqli_query($conn, "SELECT DISTINCT poin FROM jenis_pelanggaran ORDER BY poin ASC");
 
-// 3. Menyusun kondisi query pencarian SQL
+// 3. Menyusun kondisi query SQL
 $kondisi = "";
 
 if ($cari != '') {
@@ -20,9 +20,23 @@ if ($filter_poin != '') {
     $kondisi .= " AND poin = '$poin_pilihan'";
 }
 
-// 4. Jalankan query utama untuk menampilkan tabel data
-$sql = "SELECT * FROM jenis_pelanggaran WHERE 1=1 $kondisi ORDER BY poin DESC, nama_pelanggaran ASC";
+// 4. PENGATURAN PAGINASI (7 Data per Halaman)
+$limit = 7;
+$halaman = isset($_GET['halaman']) ? (int)$_GET['halaman'] : 1;
+$halaman_awal = ($halaman > 1) ? ($halaman * $limit) - $limit : 0;
+
+// Hitung total data untuk paginasi
+$query_total = mysqli_query($conn, "SELECT COUNT(*) as total FROM jenis_pelanggaran WHERE 1=1 $kondisi");
+$data_total = mysqli_fetch_assoc($query_total);
+$total_data = $data_total['total'];
+$total_halaman = ceil($total_data / $limit);
+
+// 5. Query utama dengan LIMIT & OFFSET
+$sql = "SELECT * FROM jenis_pelanggaran WHERE 1=1 $kondisi ORDER BY poin DESC, nama_pelanggaran ASC LIMIT $halaman_awal, $limit";
 $query = mysqli_query($conn, $sql);
+
+// Menentukan nomor urut awal
+$no = $halaman_awal + 1;
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -32,7 +46,7 @@ $query = mysqli_query($conn, $sql);
 
 <div class="card shadow-sm mb-4">
     <div class="card-body bg-light">
-        <form method="POST" action="" class="row g-3">
+        <form method="POST" action="index.php?page=jenis" class="row g-3">
             
             <div class="col-md-4">
                 <input type="text" name="cari" class="form-control" placeholder="Cari nama pelanggaran..." value="<?= htmlspecialchars($cari); ?>">
@@ -45,9 +59,7 @@ $query = mysqli_query($conn, $sql);
                     if ($query_angka_poin) {
                         while ($row_poin = mysqli_fetch_assoc($query_angka_poin)) {
                             $angka = $row_poin['poin'];
-                            // Menjaga agar pilihan dropdown tidak reset kembali setelah klik tombol Tampilkan
                             $selected = ($filter_poin != '' && intval($filter_poin) === intval($angka)) ? 'selected' : '';
-                            
                             echo "<option value='".$angka."' ".$selected.">".$angka." Poin</option>";
                         }
                     }
@@ -65,7 +77,7 @@ $query = mysqli_query($conn, $sql);
     </div>
 </div>
 
-<div class="table-responsive shadow-sm rounded">
+<div class="table-responsive shadow-sm rounded mb-3">
     <table class="table table-bordered table-hover bg-white mb-0">
         <thead class="table-dark">
             <tr>
@@ -77,9 +89,8 @@ $query = mysqli_query($conn, $sql);
         </thead>
         <tbody>
             <?php
-            $no = 1;
             if (mysqli_num_rows($query) == 0) {
-                echo "<tr><td colspan='4' class='text-center text-danger fw-bold py-3'>Data tidak ditemukan untuk poin ini!</td></tr>";
+                echo "<tr><td colspan='4' class='text-center text-danger fw-bold py-3'>Data tidak ditemukan!</td></tr>";
             } else {
                 while ($data = mysqli_fetch_array($query)) {
                     $poin_aktif = intval($data['poin']);
@@ -102,6 +113,30 @@ $query = mysqli_query($conn, $sql);
         </tbody>
     </table>
 </div>
+
+<!-- TOMBOL PAGINASI BOOTSTRAP -->
+<?php if ($total_halaman > 1): ?>
+<nav aria-label="Page navigation">
+    <ul class="pagination justify-content-end">
+        <!-- Tombol Previous -->
+        <li class="page-item <?= ($halaman <= 1) ? 'disabled' : ''; ?>">
+            <a class="page-link" href="index.php?page=jenis&halaman=<?= $halaman - 1; ?>&cari=<?= urlencode($cari); ?>&filter_poin=<?= urlencode($filter_poin); ?>">Previous</a>
+        </li>
+
+        <!-- Angka Halaman -->
+        <?php for ($i = 1; $i <= $total_halaman; $i++): ?>
+            <li class="page-item <?= ($halaman == $i) ? 'active' : ''; ?>">
+                <a class="page-link" href="index.php?page=jenis&halaman=<?= $i; ?>&cari=<?= urlencode($cari); ?>&filter_poin=<?= urlencode($filter_poin); ?>"><?= $i; ?></a>
+            </li>
+        <?php endfor; ?>
+
+        <!-- Tombol Next -->
+        <li class="page-item <?= ($halaman >= $total_halaman) ? 'disabled' : ''; ?>">
+            <a class="page-link" href="index.php?page=jenis&halaman=<?= $halaman + 1; ?>&cari=<?= urlencode($cari); ?>&filter_poin=<?= urlencode($filter_poin); ?>">Next</a>
+        </li>
+    </ul>
+</nav>
+<?php endif; ?>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
