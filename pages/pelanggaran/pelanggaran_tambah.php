@@ -14,8 +14,7 @@ if (file_exists($path_koneksi)) {
     include '../../koneksi.php';
 }
 
-/** 
- * MEMAKSA INTELLISENSE VS CODE MENGENALI VARIABEL DATABASE
+/** * MEMAKSA INTELLISENSE VS CODE MENGENALI VARIABEL DATABASE
  * @var mysqli $conn 
  * @var mysqli $koneksi
  * @var mysqli $db
@@ -44,12 +43,14 @@ $_SESSION['last_view_pelanggaran'] = $from_view;
 // 3. PROSES SIMPAN DATA (POST FORM)
 // ========================================================
 $alert = '';
+$swal_script = '';
+
 if (isset($_POST['simpan_pelanggaran'])) {
-    $id_siswa      = (int)$_POST['id_siswa'];
-    $id_jenis      = (int)$_POST['id_jenis'];
-    $id_user       = isset($_POST['id_user']) ? (int)$_POST['id_user'] : 1;
-    $tanggal       = mysqli_real_escape_string($koneksi, $_POST['tanggal']);
-    $keterangan    = mysqli_real_escape_string($koneksi, $_POST['keterangan']);
+    $id_siswa     = (int)$_POST['id_siswa'];
+    $id_jenis     = (int)$_POST['id_jenis'];
+    $id_user      = isset($_POST['id_user']) ? (int)$_POST['id_user'] : 1;
+    $tanggal      = mysqli_real_escape_string($koneksi, $_POST['tanggal']);
+    $keterangan   = mysqli_real_escape_string($koneksi, $_POST['keterangan']);
     $redirect_view = mysqli_real_escape_string($koneksi, $_POST['redirect_view']);
 
     if ($id_siswa > 0 && $id_jenis > 0 && !empty($tanggal)) {
@@ -57,23 +58,55 @@ if (isset($_POST['simpan_pelanggaran'])) {
         $stmt_ins->bind_param("iiiss", $id_siswa, $id_jenis, $id_user, $tanggal, $keterangan);
         
         if ($stmt_ins->execute()) {
-            echo "<script>
-                    alert('Berhasil! Catatan pelanggaran baru berhasil disimpan.');
-                    window.location.href = 'index.php?page=pelanggaran&view=" . urlencode($redirect_view) . "';
-                  </script>";
-            exit;
+            $target_url = "index.php?page=pelanggaran&view=" . urlencode($redirect_view);
+            // SweetAlert2 bergaya sama seperti Modal Sukses pada Manajemen User
+            $swal_script = "
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Sukses!',
+                        text: 'Catatan pelanggaran berhasil ditambahkan!',
+                        showConfirmButton: false,
+                        timer: 1500,
+                        timerProgressBar: true
+                    }).then(function() {
+                        window.location.href = '$target_url';
+                    });
+                } else {
+                    window.location.href = '$target_url';
+                }
+            });
+            </script>";
         } else {
-            $alert = '<div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <strong>Gagal!</strong> Terjadi kesalahan saat menyimpan data.
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                      </div>';
+            $swal_script = "
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal!',
+                        text: 'Terjadi kesalahan saat menyimpan data ke database.'
+                    });
+                }
+            });
+            </script>";
         }
         $stmt_ins->close();
     } else {
-        $alert = '<div class="alert alert-warning alert-dismissible fade show" role="alert">
-                    <strong>Peringatan!</strong> Silakan pilih nama siswa dan jenis pelanggaran dari daftar yang muncul.
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                  </div>';
+        $swal_script = "
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Peringatan!',
+                    text: 'Silakan pilih nama siswa dan jenis pelanggaran dari daftar yang muncul.'
+                });
+            }
+        });
+        </script>";
     }
 }
 
@@ -115,28 +148,26 @@ if ($q_jenis) {
 $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER BY nama_lengkap ASC");
 ?>
 
-<!-- ========================================================
-// 5. TAMPILAN FORM HTML
-// ======================================================== -->
-<div class="container-fluid py-4">
-    <?= $alert ?>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<?= $swal_script ?>
+
+<div class="container-fluid py-3 py-md-4">
 
     <div class="card shadow-sm border-0 rounded-3 bg-white">
-        <div class="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold"><i class="fas fa-plus-circle text-warning me-2"></i>Tambah Catatan Pelanggaran Siswa</h5>
+        <div class="card-header bg-dark text-white p-3 d-flex flex-column flex-sm-row justify-content-between align-items-sm-center gap-2">
+            <h5 class="mb-0 fw-bold fs-6 fs-md-5"><i class="fas fa-plus-circle text-warning me-2"></i>Tambah Catatan Pelanggaran Siswa</h5>
             
-            <a href="index.php?page=pelanggaran&view=<?= urlencode($from_view) ?>" class="btn btn-secondary btn-sm shadow-2xs">
+            <a href="index.php?page=pelanggaran&view=<?= urlencode($from_view) ?>" class="btn btn-secondary btn-sm align-self-start align-self-sm-auto">
                 <i class="fas fa-arrow-left me-1"></i> Kembali ke Menu <?= $from_view == 'pengelompokan' ? 'Pengelompokan' : 'Semua Pelanggaran' ?>
             </a>
         </div>
         
-        <div class="card-body p-4">
+        <div class="card-body p-3 p-md-4">
             <form method="POST" action="" autocomplete="off" id="form_pelanggaran">
                 <input type="hidden" name="redirect_view" value="<?= htmlspecialchars($from_view) ?>">
 
                 <div class="row">
-                    <div class="col-md-6 mb-3">
-                        <!-- Input Cari Siswa -->
+                    <div class="col-12 col-md-6 mb-3">
                         <div class="position-relative mb-3">
                             <label class="form-label fw-bold small text-secondary">Cari Nama / NIS Siswa <span class="text-danger">*</span></label>
                             <div class="input-group">
@@ -145,12 +176,10 @@ $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER 
                             </div>
                             <input type="hidden" name="id_siswa" id="hidden_id_siswa" required>
                             
-                            <!-- Box Dropdown Hasil Pencarian -->
                             <div id="box_suggest_siswa" class="autocomplete-suggestions d-none card shadow position-absolute w-100 bg-white border"></div>
-                            <small class="text-muted" style="font-size: 0.78rem;">* Langsung munculkan daftar siswa begitu mengetik huruf pertama.</small>
+                            <small class="text-muted d-block mt-1" style="font-size: 0.78rem;">* Langsung munculkan daftar siswa begitu mengetik huruf pertama.</small>
                         </div>
 
-                        <!-- Input Cari Jenis Pelanggaran -->
                         <div class="position-relative mb-3">
                             <label class="form-label fw-bold small text-secondary">Cari Jenis Pelanggaran <span class="text-danger">*</span></label>
                             <div class="input-group">
@@ -159,13 +188,12 @@ $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER 
                             </div>
                             <input type="hidden" name="id_jenis" id="hidden_id_jenis" required>
                             
-                            <!-- Box Dropdown Hasil Pencarian -->
                             <div id="box_suggest_jenis" class="autocomplete-suggestions d-none card shadow position-absolute w-100 bg-white border"></div>
-                            <small class="text-muted" style="font-size: 0.78rem;">* Contoh: Ketik "t", "terlambat", "sepatu", dll.</small>
+                            <small class="text-muted d-block mt-1" style="font-size: 0.78rem;">* Contoh: Ketik "t", "terlambat", "sepatu", dll.</small>
                         </div>
                     </div>
 
-                    <div class="col-md-6 mb-3">
+                    <div class="col-12 col-md-6 mb-3">
                         <div class="mb-3">
                             <label class="form-label fw-bold small text-secondary">Tanggal Kejadian <span class="text-danger">*</span></label>
                             <input type="date" name="tanggal" class="form-control" value="<?= date('Y-m-d') ?>" required>
@@ -193,8 +221,8 @@ $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER 
 
                 <hr class="text-muted">
                 
-                <div class="d-flex justify-content-end align-items-center gap-2">
-                    <a href="index.php?page=pelanggaran&view=<?= urlencode($from_view) ?>" class="btn btn-secondary px-4">
+                <div class="d-flex flex-column-reverse flex-sm-row justify-content-end align-items-stretch align-items-sm-center gap-2">
+                    <a href="index.php?page=pelanggaran&view=<?= urlencode($from_view) ?>" class="btn btn-secondary px-4 text-center">
                         <i class="fas fa-times me-1"></i> Batal
                     </a>
                     
@@ -209,9 +237,6 @@ $opt_petugas = mysqli_query($koneksi, "SELECT id, nama_lengkap FROM users ORDER 
     </div>
 </div>
 
-<!-- ========================================================
-// 6. SCRIPT JAVASCRIPT INSTAN SEARCH (NO AJAX - ZERO DELAY)
-// ======================================================== -->
 <script>
 // Transfer data PHP ke variabel JavaScript
 const LIST_SISWA = <?= json_encode($raw_siswa) ?>;
@@ -248,12 +273,11 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        // Filter data siswa secara cepat
         const filtered = LIST_SISWA.filter(item => {
             return item.nama.toLowerCase().includes(val) || 
                    item.nis.toLowerCase().includes(val) || 
                    item.kelas.toLowerCase().includes(val);
-        }).slice(0, 15); // Ambil maksimal 15 teratas
+        }).slice(0, 15);
 
         if (filtered.length > 0) {
             boxSiswa.classList.remove('d-none');
@@ -309,7 +333,6 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        // Filter data pelanggaran secara cepat
         const filtered = LIST_JENIS.filter(item => {
             return item.nama.toLowerCase().includes(val);
         }).slice(0, 15);
@@ -379,16 +402,17 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     .suggest-item { 
         cursor: pointer; 
-        transition: background 0.2s; 
+        transition: background 0.2s, color 0.2s; 
         font-size: 0.88rem; 
-        color: #aa3030; 
+        color: #333333; 
         padding: 10px 15px !important;
     }
     .suggest-item:hover { 
-        background-color: #ffbb00; 
-        color: #fffffd; 
+        background-color: #0d6efd; 
+        color: #ffffff; 
     }
-    .shadow-2xs { 
-        box-shadow: 0 1px 2px 0 rgba(255, 230, 1, 0.97); 
+    .suggest-item:hover small,
+    .suggest-item:hover .text-muted {
+        color: #e0e0e0 !important;
     }
 </style>
