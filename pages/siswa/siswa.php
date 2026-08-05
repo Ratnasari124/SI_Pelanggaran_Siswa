@@ -1,12 +1,18 @@
 <?php
 /** @var mysqli $conn */
 
-// Menangkap nilai pencarian dan filter
+// Menangkap nilai pencarian, filter, dan halaman aktif
 $cari = isset($_GET['cari']) ? $_GET['cari'] : '';
 $filter_kelas = isset($_GET['filter_kelas']) ? $_GET['filter_kelas'] : '';
-// Default status adalah 'Aktif' jika tidak ada filter yang dipilih
 $filter_status = isset($_GET['filter_status']) ? $_GET['filter_status'] : 'Aktif';
 
+// Configuration Pagination
+$limit = 10; // Jumlah data per halaman
+$halaman = isset($_GET['halaman']) ? (int)$_GET['halaman'] : 1;
+if ($halaman < 1) $halaman = 1;
+$offset = ($halaman - 1) * $limit;
+
+// Menyiapkan Kondisi Query
 $kondisi = "";
 if ($cari != '') {
     $kondisi .= " AND (siswa.nama LIKE '%$cari%' OR siswa.nis LIKE '%$cari%')";
@@ -14,16 +20,27 @@ if ($cari != '') {
 if ($filter_kelas != '') {
     $kondisi .= " AND siswa.id_kelas = '$filter_kelas'";
 }
-// Filter Status: jika 'Semua', maka jangan tambahkan kondisi status
 if ($filter_status != 'Semua') {
     $kondisi .= " AND siswa.status = '$filter_status'";
 }
 
+// 1. Hitung Total Data (Tanpa LIMIT) untuk Pagination
+$sql_total = "SELECT COUNT(*) AS total 
+              FROM siswa 
+              LEFT JOIN kelas ON siswa.id_kelas = kelas.id 
+              WHERE 1=1 $kondisi";
+$query_total = mysqli_query($conn, $sql_total);
+$data_total = mysqli_fetch_assoc($query_total);
+$total_data = $data_total['total'];
+$total_halaman = ceil($total_data / $limit);
+
+// 2. Query Utama Ambil Data dengan LIMIT & OFFSET
 $sql = "SELECT siswa.*, kelas.nama_kelas, kelas.tahun_ajaran 
         FROM siswa 
         LEFT JOIN kelas ON siswa.id_kelas = kelas.id 
         WHERE 1=1 $kondisi 
-        ORDER BY siswa.id DESC";
+        ORDER BY siswa.id DESC 
+        LIMIT $limit OFFSET $offset";
 
 $query = mysqli_query($conn, $sql);
 ?>
@@ -37,11 +54,10 @@ $query = mysqli_query($conn, $sql);
 <div class="card shadow-sm mb-4">
     <div class="card-body bg-light">
         <form method="GET" action="index.php" class="row g-2">
-            <!-- Hidden input agar tetap berada di halaman siswa saat form disubmit -->
             <input type="hidden" name="page" value="siswa">
             
             <div class="col-md-3">
-                <input type="text" name="cari" class="form-control" placeholder="Cari NIS atau Nama Siswa..." value="<?= $cari; ?>">
+                <input type="text" name="cari" class="form-control" placeholder="Cari NIS atau Nama Siswa..." value="<?= htmlspecialchars($cari); ?>">
             </div>
             
             <div class="col-md-3">
@@ -51,7 +67,6 @@ $query = mysqli_query($conn, $sql);
                     $q_kelas = mysqli_query($conn, "SELECT * FROM kelas ORDER BY tahun_ajaran DESC, nama_kelas ASC");
                     while($k = mysqli_fetch_array($q_kelas)){
                         $selected = ($filter_kelas == $k['id']) ? 'selected' : '';
-                        // Menampilkan Nama Kelas beserta Tahun Ajarannya
                         echo "<option value='{$k['id']}' $selected>{$k['nama_kelas']} ({$k['tahun_ajaran']})</option>";
                     }
                     ?>
@@ -76,7 +91,7 @@ $query = mysqli_query($conn, $sql);
 </div>
 <!-- END FORM SEARCH & FILTER -->
 
-<div class="table-responsive shadow-sm rounded">
+<div class="table-responsive shadow-sm rounded mb-3">
     <table class="table table-bordered table-hover bg-white mb-0">
         <thead class="table-dark">
             <tr>
@@ -90,7 +105,8 @@ $query = mysqli_query($conn, $sql);
         </thead>
         <tbody>
             <?php
-            $no = 1;
+            // Nomor urut menyesuaikan dengan posisi halaman
+            $no = $offset + 1;
             if(mysqli_num_rows($query) == 0){
                 echo "<tr><td colspan='6' class='text-center text-danger fw-bold'>Data tidak ditemukan!</td></tr>";
             } else {
@@ -98,13 +114,12 @@ $query = mysqli_query($conn, $sql);
             ?>
             <tr>
                 <td><?= $no++; ?></td>
-                <td><?= $data['nis']; ?></td>
-                <td><?= $data['nama']; ?></td>
-                <!-- Menampilkan Kelas + Tahun Ajaran -->
-                <td><?= $data['nama_kelas']; ?> <span class="badge bg-info text-dark"><?= $data['tahun_ajaran']; ?></span></td>
+                <td><?= htmlspecialchars($data['nis']); ?></td>
+                <td><?= htmlspecialchars($data['nama']); ?></td>
+                <td><?= htmlspecialchars($data['nama_kelas']); ?> <span class="badge bg-info text-dark"><?= htmlspecialchars($data['tahun_ajaran']); ?></span></td>
                 <td>
                     <span class="badge <?= ($data['status'] == 'Aktif') ? 'bg-success' : 'bg-danger' ?>">
-                        <?= $data['status'] ?>
+                        <?= htmlspecialchars($data['status']); ?>
                     </span>
                 </td>
                 <td>
@@ -129,7 +144,42 @@ $query = mysqli_query($conn, $sql);
             ?>
         </tbody>
     </table>
-    <!-- Modal Detail -->
+</div>
+
+<!-- CONTAINER NAVIGASI PAGINATION -->
+<?php if ($total_halaman > 1): ?>
+    <?php
+    // Membuat string parameter URL agar nilai filter/cari tetap terjaga saat ganti halaman
+    $url_params = "index.php?page=siswa&cari=" . urlencode($cari) . "&filter_kelas=" . urlencode($filter_kelas) . "&filter_status=" . urlencode($filter_status);
+    ?>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <small class="text-muted">
+            Menampilkan <?= min($offset + 1, $total_data); ?> sampai <?= min($offset + $limit, $total_data); ?> dari <?= $total_data; ?> data
+        </small>
+        <nav aria-label="Page navigation">
+            <ul class="pagination pagination-sm m-0">
+                <!-- Tombol Previous -->
+                <li class="page-item <?= ($halaman <= 1) ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="<?= $url_params; ?>&halaman=<?= $halaman - 1; ?>">&laquo;</a>
+                </li>
+
+                <!-- Tombol Angka Halaman -->
+                <?php for ($i = 1; $i <= $total_halaman; $i++): ?>
+                    <li class="page-item <?= ($halaman == $i) ? 'active' : ''; ?>">
+                        <a class="page-link" href="<?= $url_params; ?>&halaman=<?= $i; ?>"><?= $i; ?></a>
+                    </li>
+                <?php endfor; ?>
+
+                <!-- Tombol Next -->
+                <li class="page-item <?= ($halaman >= $total_halaman) ? 'disabled' : ''; ?>">
+                    <a class="page-link" href="<?= $url_params; ?>&halaman=<?= $halaman + 1; ?>">&raquo;</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+<?php endif; ?>
+
+<!-- Modal Detail -->
 <div class="modal fade" id="modalDetail" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -138,7 +188,6 @@ $query = mysqli_query($conn, $sql);
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="detailBody">
-                <!-- Data akan dimuat disini oleh AJAX -->
                 <div class="text-center">Memuat data...</div>
             </div>
         </div>
@@ -157,11 +206,8 @@ document.querySelectorAll('.btn-detail').forEach(button => {
             });
     });
 });
-</script>
-</div>
 
-<!-- Script SweetAlert2 untuk Hapus (Tetap sama seperti sebelumnya) -->
-<script>
+// Script SweetAlert2 untuk Hapus
 document.addEventListener('DOMContentLoaded', function() {
     const tombolHapus = document.querySelectorAll('.btn-hapus');
     tombolHapus.forEach(tombol => {
