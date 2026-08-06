@@ -179,6 +179,7 @@ if (isset($_POST['simpan_pengurangan'])) {
 // =========================================================================
 if ($from_view == 'pengelompokan'):
 
+    
     // 1. Ambil Data Siswa & Akumulasi Poin
     $q_siswa = mysqli_query($conn, "SELECT s.id, s.nis, s.nama AS nama_siswa, s.no_hp, k.nama_kelas,
                                            COUNT(p.id) AS total_kasus, 
@@ -341,15 +342,62 @@ if ($from_view == 'pengelompokan'):
                                 <td><small><?= htmlspecialchars($row['petugas'] ?? 'guru umum') ?></small></td>
                                 <td class="fw-semibold"><?= htmlspecialchars($row['nama_pelanggaran']) ?></td>
                                 <td class="text-center">+<?= $row['poin'] ?></td>
-                                <td class="text-center col-aksi">
+                               <td class="text-center col-aksi">
                                     <div class="btn-group btn-group-sm">
                                         <a href="index.php?page=pelanggaran_edit&id=<?= $row['id'] ?>" class="btn btn-warning btn-sm text-dark">
                                             <i class="fas fa-edit"></i>
                                         </a>
+                                        <!-- Tombol Pemicu Modal -->
                                         <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalKurangPoin<?= $row['id'] ?>">
                                             <i class="fas fa-minus-circle"></i>
                                         </button>
                                     </div>
+
+                                    <!-- ========================================== -->
+                                    <!-- ELEMEN MODAL PENGURANGAN POIN (TAMBAHKAN INI) -->
+                                    <!-- ========================================== -->
+                                    <div class="modal fade text-start" id="modalKurangPoin<?= $row['id'] ?>" tabindex="-1" aria-labelledby="modalLabel<?= $row['id'] ?>" aria-hidden="true">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <form action="" method="POST">
+                                                    <div class="modal-header bg-success text-white">
+                                                        <h5 class="modal-title" id="modalLabel<?= $row['id'] ?>">
+                                                            <i class="fas fa-minus-circle me-1"></i> Form Pengurangan Poin
+                                                        </h5>
+                                                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                    </div>
+                                                    <div class="modal-body">
+                                                        <!-- Hidden Inputs -->
+                                                        <input type="hidden" name="id_pelanggaran" value="<?= $row['id'] ?>">
+                                                        <input type="hidden" name="id_siswa" value="<?= $id_target ?>">
+
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">Tanggal Pembinaan</label>
+                                                            <input type="date" name="tanggal" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                                                        </div>
+
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">Kegiatan Pembinaan / Alasan</label>
+                                                            <textarea name="kegiatan_pembinaan" class="form-control" rows="3" placeholder="Contoh: Mengikuti Kerja Bakti / Pembinaan BK" required></textarea>
+                                                        </div>
+
+                                                        <div class="mb-3">
+                                                            <label class="form-label fw-bold">Jumlah Poin Dikurangi</label>
+                                                            <input type="number" name="jumlah_poin_kurang" class="form-control" min="1" max="<?= $row['poin'] ?>" value="<?= $row['poin'] ?>" required>
+                                                            <small class="text-muted">Maksimal pengurangan: <?= $row['poin'] ?> poin</small>
+                                                        </div>
+                                                    </div>
+                                                    <div class="modal-footer">
+                                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                                                        <button type="submit" name="simpan_pengurangan" class="btn btn-success">
+                                                            <i class="fas fa-save me-1"></i> Simpan Pengurangan
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- ========================================== -->
                                 </td>
                             </tr>
                         <?php endwhile; else: ?>
