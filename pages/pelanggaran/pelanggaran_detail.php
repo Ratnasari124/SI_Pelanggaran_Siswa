@@ -69,7 +69,7 @@ if (isset($_POST['simpan_pengurangan'])) {
     }
 }
 
-// CSS Universal untuk Kedua Tampilan
+// CSS Universal & Pengaturan khusus Cetak Landscape
 ?>
 <style>
     /* Elemen khusus cetak disembunyikan di layar komputer biasa */
@@ -77,8 +77,13 @@ if (isset($_POST['simpan_pengurangan'])) {
         display: none;
     }
 
-    /* Pengaturan Tampilan Khusus Cetak/PDF */
+    /* Pengaturan Tampilan Khusus Cetak/PDF (LANDSCAPE) */
     @media print {
+        @page {
+            size: A4 landscape !important;
+            margin: 1cm !important;
+        }
+
         .no-print, .btn, .modal, nav, header, sidebar, .main-header, .main-sidebar, .col-aksi {
             display: none !important;
         }
@@ -91,11 +96,34 @@ if (isset($_POST['simpan_pengurangan'])) {
             width: 100% !important;
         }
 
+        /* Pertahankan Grid Row dalam Mode Cetak Landscape */
+        .row {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 15px !important;
+        }
+
+        .col-md-5 {
+            width: 42% !important;
+            flex: 0 0 42% !important;
+        }
+
+        .col-md-7 {
+            width: 58% !important;
+            flex: 0 0 58% !important;
+        }
+
+        .col-6 {
+            width: 50% !important;
+            flex: 0 0 50% !important;
+        }
+
         body {
             background-color: #ffffff !important;
             color: #000000 !important;
             font-family: Arial, sans-serif !important;
-            font-size: 11pt !important;
+            font-size: 10pt !important;
             margin: 0 !important;
             padding: 0 !important;
         }
@@ -104,8 +132,8 @@ if (isset($_POST['simpan_pengurangan'])) {
             display: block !important;
             text-align: center;
             border-bottom: 2px solid #000;
-            padding-bottom: 10px;
-            margin-bottom: 20px;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
         }
 
         .area-cetak-kop h3 {
@@ -122,7 +150,7 @@ if (isset($_POST['simpan_pengurangan'])) {
         .card {
             border: 1px solid #000 !important;
             box-shadow: none !important;
-            margin-bottom: 15px !important;
+            margin-bottom: 12px !important;
             background: #fff !important;
         }
 
@@ -136,12 +164,12 @@ if (isset($_POST['simpan_pengurangan'])) {
         .table {
             width: 100% !important;
             border-collapse: collapse !important;
-            margin-bottom: 15px !important;
+            margin-bottom: 10px !important;
         }
 
         .table th, .table td {
             border: 1px solid #000 !important;
-            padding: 6px 8px !important;
+            padding: 5px 8px !important;
             color: #000 !important;
         }
 
@@ -157,18 +185,13 @@ if (isset($_POST['simpan_pengurangan'])) {
         .area-ttd-cetak {
             display: flex !important;
             justify-content: space-between;
-            margin-top: 30px;
+            margin-top: 25px;
             page-break-inside: avoid;
         }
 
         .box-ttd {
             text-align: center;
-            width: 40%;
-        }
-
-        @page {
-            size: A4 portrait;
-            margin: 1.5cm;
+            width: 35%;
         }
     }
 </style>
@@ -179,7 +202,6 @@ if (isset($_POST['simpan_pengurangan'])) {
 // =========================================================================
 if ($from_view == 'pengelompokan'):
 
-    
     // 1. Ambil Data Siswa & Akumulasi Poin
     $q_siswa = mysqli_query($conn, "SELECT s.id, s.nis, s.nama AS nama_siswa, s.no_hp, k.nama_kelas,
                                            COUNT(p.id) AS total_kasus, 
@@ -241,7 +263,7 @@ if ($from_view == 'pengelompokan'):
         </div>
         <div class="d-flex gap-2">
             <button onclick="window.print()" class="btn btn-danger btn-sm px-3">
-                <i class="fas fa-print me-1"></i> Cetak / Simpan PDF
+                <i class="fas fa-print me-1"></i> Cetak / Simpan PDF (Landscape)
             </button>
             
             <a href="index.php?page=pelanggaran&view=<?= htmlspecialchars($from_view) ?>" class="btn btn-light btn-sm border px-3">
@@ -342,20 +364,17 @@ if ($from_view == 'pengelompokan'):
                                 <td><small><?= htmlspecialchars($row['petugas'] ?? 'guru umum') ?></small></td>
                                 <td class="fw-semibold"><?= htmlspecialchars($row['nama_pelanggaran']) ?></td>
                                 <td class="text-center">+<?= $row['poin'] ?></td>
-                               <td class="text-center col-aksi">
+                                <td class="text-center col-aksi">
                                     <div class="btn-group btn-group-sm">
                                         <a href="index.php?page=pelanggaran_edit&id=<?= $row['id'] ?>" class="btn btn-warning btn-sm text-dark">
                                             <i class="fas fa-edit"></i>
                                         </a>
-                                        <!-- Tombol Pemicu Modal -->
                                         <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#modalKurangPoin<?= $row['id'] ?>">
                                             <i class="fas fa-minus-circle"></i>
                                         </button>
                                     </div>
 
-                                    <!-- ========================================== -->
-                                    <!-- ELEMEN MODAL PENGURANGAN POIN (TAMBAHKAN INI) -->
-                                    <!-- ========================================== -->
+                                    <!-- MODAL PENGURANGAN POIN -->
                                     <div class="modal fade text-start" id="modalKurangPoin<?= $row['id'] ?>" tabindex="-1" aria-labelledby="modalLabel<?= $row['id'] ?>" aria-hidden="true">
                                         <div class="modal-dialog">
                                             <div class="modal-content">
@@ -367,7 +386,6 @@ if ($from_view == 'pengelompokan'):
                                                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                                                     </div>
                                                     <div class="modal-body">
-                                                        <!-- Hidden Inputs -->
                                                         <input type="hidden" name="id_pelanggaran" value="<?= $row['id'] ?>">
                                                         <input type="hidden" name="id_siswa" value="<?= $id_target ?>">
 
@@ -397,7 +415,6 @@ if ($from_view == 'pengelompokan'):
                                             </div>
                                         </div>
                                     </div>
-                                    <!-- ========================================== -->
                                 </td>
                             </tr>
                         <?php endwhile; else: ?>
@@ -484,7 +501,7 @@ if ($from_view == 'pengelompokan'):
         </div>
         <div class="d-flex gap-2">
             <button onclick="window.print()" class="btn btn-danger btn-sm px-3">
-                <i class="fas fa-print me-1"></i> Cetak / Simpan PDF
+                <i class="fas fa-print me-1"></i> Cetak / Simpan PDF (Landscape)
             </button>
             <a href="index.php?page=pelanggaran&view=semua" class="btn btn-light btn-sm border px-3">
                 <i class="fas fa-arrow-left me-1"></i> Kembali

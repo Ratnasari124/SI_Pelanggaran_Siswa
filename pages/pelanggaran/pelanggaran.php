@@ -220,6 +220,7 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
 
 <div class="container-fluid px-4 py-4">
 
+    <!-- Card Header Menu Log Pelanggaran dengan Dropdown dan Tombol Tambah -->
     <div class="card border-0 shadow-sm rounded-3 mb-4 bg-white">
         <div class="card-body p-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div>
@@ -229,13 +230,18 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                 <p class="text-muted small mb-0">Pilih mode pengelompokan data untuk memulai pengelolaan.</p>
             </div>
             
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
                 <label class="form-label small mb-0 fw-semibold text-secondary">Mode Tampilan :</label>
                 <select class="form-select form-select-sm fw-bold border-primary text-primary" style="width: auto;" onchange="location = this.value;">
                     <option value="index.php?page=pelanggaran&view=" <?= empty($view) ? 'selected' : '' ?>>-- Pilih Mode Tampilan --</option>
                     <option value="index.php?page=pelanggaran&view=pengelompokan" <?= $view == 'pengelompokan' ? 'selected' : '' ?>>Pengelompokan Siswa</option>
                     <option value="index.php?page=pelanggaran&view=semua" <?= $view == 'semua' ? 'selected' : '' ?>>Semua Pelanggaran</option>
                 </select>
+
+                <!-- Tombol Tambah ditempatkan di sini -->
+                <a href="index.php?page=pelanggaran_tambah<?= !empty($view) ? '&from_view=' . urlencode($view) : '' ?>" class="btn btn-primary btn-sm fw-semibold ms-1">
+                    <i class="fas fa-plus me-1"></i> Tambah Pelanggaran
+                </a>
             </div>
         </div>
     </div>
@@ -284,9 +290,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                     </form>
 
                     <div class="d-flex align-items-center gap-1">
-                        <a href="index.php?page=pelanggaran_tambah&from_view=semua" class="btn btn-primary btn-sm fw-semibold">
-                            <i class="fas fa-plus me-1"></i> Tambah Pelanggaran
-                        </a>
                         <a href="index.php?page=pelanggaran&view=semua&action=cetak_pdf_semua&search=<?= urlencode($search) ?>&tgl_mulai=<?= urlencode($tgl_mulai) ?>&tgl_selesai=<?= urlencode($tgl_selesai) ?>" target="_blank" class="btn btn-danger btn-sm">
                             <i class="fas fa-file-pdf me-1"></i> Cetak PDF
                         </a>
@@ -311,12 +314,6 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                             <?php endif; ?>
                         </div>
                     </form>
-
-                    <div>
-                        <a href="index.php?page=pelanggaran_tambah&from_view=pengelompokan" class="btn btn-danger btn-sm px-3 fw-semibold">
-                            <i class="fas fa-plus me-1"></i> Tambah
-                        </a>
-                    </div>
                 </div>
             <?php endif; ?>
 
@@ -530,54 +527,36 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                                 <th width="10%" class="text-center">Tanggal</th>
                                 <th width="12%">NIS</th>
                                 <th width="18%">Nama Siswa</th>
-                                <th width="8%">Kelas</th>
+                                <th width="10%">Kelas</th>
                                 <th width="20%">Jenis Pelanggaran</th>
-                                <th width="6%" class="text-center">Poin</th>
                                 <th width="12%">Petugas</th>
-                                <th width="10%" class="text-center">Aksi</th>
+                                <th width="6%" class="text-center">Poin</th>
+                                <th width="8%" class="text-center">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <?php if ($q_semua && mysqli_num_rows($q_semua) > 0): $no = $offset + 1; while($row = mysqli_fetch_assoc($q_semua)): ?>
+                            <?php if ($q_semua && mysqli_num_rows($q_semua) > 0): $no_s = $offset + 1; while($rs = mysqli_fetch_assoc($q_semua)): ?>
                                 <tr>
-                                    <td class="text-center"><?= $no++ ?></td>
-                                    <td class="text-center"><?= date('d/m/Y', strtotime($row['tanggal'])) ?></td>
-                                    <td class="text-secondary"><?= htmlspecialchars($row['nis']) ?></td>
-                                    <td class="fw-bold text-dark"><?= htmlspecialchars($row['nama_siswa']) ?></td>
+                                    <td class="text-center"><?= $no_s++ ?></td>
+                                    <td class="text-center"><?= date('d/m/Y', strtotime($rs['tanggal'])) ?></td>
+                                    <td class="text-secondary"><?= htmlspecialchars($rs['nis']) ?></td>
+                                    <td class="fw-bold text-dark"><?= htmlspecialchars($rs['nama_siswa']) ?></td>
                                     <td>
                                         <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 0.75rem;">
-                                            <?= htmlspecialchars($row['nama_kelas'] ?? '-') ?>
+                                            <?= htmlspecialchars($rs['nama_kelas'] ?? '-') ?>
                                         </span>
                                     </td>
-                                    <td>
-                                        <div><?= htmlspecialchars($row['nama_pelanggaran']) ?></div>
-                                        <?php if(!empty($row['keterangan'])): ?>
-                                            <small class="text-muted d-block" style="font-size: 0.75rem;">
-                                                <i>Ket: <?= htmlspecialchars($row['keterangan']) ?></i>
-                                            </small>
-                                        <?php endif; ?>
-                                    </td>
+                                    <td><?= htmlspecialchars($rs['nama_pelanggaran']) ?></td>
+                                    <td><?= htmlspecialchars($rs['petugas'] ?? '-') ?></td>
+                                    <td class="text-center fw-bold text-danger">+<?= $rs['poin'] ?></td>
                                     <td class="text-center">
-                                        <span class="badge bg-danger rounded-pill px-2 py-1">
-                                            +<?= $row['poin'] ?>
-                                        </span>
-                                    </td>
-                                    <td class="text-muted" style="font-size: 0.8rem;">
-                                        <?= htmlspecialchars($row['petugas'] ?? '-') ?>
-                                    </td>
-                                    <td class="text-center">
-                                        <div class="d-inline-flex gap-1">
-                                            <a href="index.php?page=pelanggaran_edit&id=<?= $row['id_pelanggaran'] ?>&from_view=semua" class="btn btn-warning btn-sm px-2 py-1 text-white" style="font-size: 0.75rem;" title="Edit Data">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                            <a href="index.php?page=pelanggaran_hapus&id=<?= $row['id_pelanggaran'] ?>&from_view=semua" class="btn btn-danger btn-sm px-2 py-1" style="font-size: 0.75rem;" title="Hapus Data" onclick="return confirm('Apakah Anda yakin ingin menghapus data pelanggaran ini?');">
-                                                <i class="fas fa-trash"></i>
-                                            </a>
-                                        </div>
+                                        <a href="index.php?page=pelanggaran_hapus&id=<?= $rs['id_pelanggaran'] ?>&from_view=semua" class="btn btn-outline-danger btn-sm py-0 px-2" title="Hapus Pelanggaran Ini" onclick="return confirm('Apakah Anda yakin ingin menghapus data pelanggaran ini?');">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
                                     </td>
                                 </tr>
                             <?php endwhile; else: ?>
-                                <tr><td colspan="9" class="text-center py-4 text-muted">Data pelanggaran tidak ditemukan.</td></tr>
+                                <tr><td colspan="9" class="text-center py-4 text-muted">Belum ada data pelanggaran.</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -586,9 +565,9 @@ if (isset($_GET['action']) && $_GET['action'] == 'cetak_pdf_semua') {
                 <?php if ($total_pages_semua > 1): ?>
                     <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top">
                         <small class="text-muted">
-                            Menampilkan <?= min($offset + 1, $total_records_semua) ?> - <?= min($offset + $limit, $total_records_semua) ?> dari <strong><?= $total_records_semua ?></strong> log pelanggaran
+                            Menampilkan <?= min($offset + 1, $total_records_semua) ?> - <?= min($offset + $limit, $total_records_semua) ?> dari <strong><?= $total_records_semua ?></strong> data
                         </small>
-                        <nav aria-label="Navigasi Halaman Semua">
+                        <nav aria-label="Navigasi Halaman">
                             <ul class="pagination pagination-sm mb-0">
                                 <li class="page-item <?= ($page_no <= 1) ? 'disabled' : '' ?>">
                                     <a class="page-link" href="<?= get_pagination_url($page_no - 1) ?>">Sebelumnya</a>
