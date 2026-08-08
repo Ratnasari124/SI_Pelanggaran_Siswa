@@ -22,7 +22,7 @@ if ($filter_poin != '') {
 }
 
 // 4. PENGATURAN PAGINASI (7 Data per Halaman)
-$limit = 7;
+$limit = 10;
 $halaman = isset($_GET['halaman']) ? max(1, (int)$_GET['halaman']) : 1;
 $halaman_awal = ($halaman - 1) * $limit;
 
